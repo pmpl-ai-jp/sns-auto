@@ -55,21 +55,19 @@ JSON: {{"blocking": ["..."], "suggestions": ["..."]}}""", 0.1, role="checker")
     return [f"論理チェック: {i}" for i in r.get("blocking", [])], r.get("suggestions", [])
 
 def design_check(image_paths):
-    """デザインのレビュー係: 画像を見て、読みやすさ・はみ出し・詰め込みすぎを確認する"""
+    """デザインのレビュー係: 公開を止める見た目の問題(blocking)と、細かい改善点(suggestions)を分けて返す"""
     from .llm import generate_json
     from .common import ROOT
-    r = generate_json("""Instagramのカルーセル画像をレビューしてください。スマホで見る前提で、厳しめに判定します。
-観点:
-(1) 文字が切れている・重なっている・枠からはみ出している
-(2) 文字が小さすぎる、1枚の情報量が多すぎて読む気がしない
-(3) 不自然な改行（言葉の途中での改行、1〜2文字だけの行、句読点や開き括弧の位置、行の長さが極端にバラバラ）
-(3b) ラベルと文の重複（「保存版」ラベルの下の文にも「保存版」がある等）、本文に「例：」「質問：」のようなラベルが残っている
-(4) 1枚目の表紙が、スクロール中に目に止まる強さがあるか。タイトルが問いかけで終わらず、行動で言い切っているか
-(5) 全体のデザインがそろっているか
-写真やイラストがないことは、このアカウントの方針なので問題にしない。
-問題がなければ ok=true。直すべき点は、何枚目の何をどう直すか（文字を減らす、言い換える等）を具体的に書く。
-JSON: {"ok": true/false, "issues": ["..."]}""", 0.1, role="checker", images=[str(ROOT / p) for p in image_paths])
-    return [] if r.get("ok") else [f"デザイン: {i}" for i in r.get("issues", [])]
+    r = generate_json("""Instagramのカルーセル画像をレビューしてください。スマホで見る前提です。
+【公開を止める問題（blocking）】見た目が壊れているものだけ:
+(a) 文字が切れている・重なっている・枠や下の帯からはみ出している
+(b) 文字が小さすぎて読めない、または1枚に文字が詰まりすぎて読む気がしない
+(c) 単語の途中での改行（例:「自／動化」）、句読点や開き括弧が行頭に来ている
+(d) ラベルと本文の重複（「保存版」ラベルの下に「保存版：」がある等）、本文に「例：」のようなラベルが残っている
+【改善点（suggestions）】上に当てはまらないもの（言い回し、表現の統一、表紙の訴求力、細かい位置のずれ、文節単位の改行の好み など）。公開は止めない。
+写真やイラストがないことは、このアカウントの方針なので指摘しない。文章の内容の正しさは別の係が確認済みなので、見た目に集中する。
+JSON: {"blocking": ["何枚目の何をどう直すか"], "suggestions": ["..."]}""", 0.1, role="checker", images=[str(ROOT / p) for p in image_paths])
+    return [f"デザイン: {i}" for i in r.get("blocking", [])], r.get("suggestions", [])
 
 def apply_pr(text, has_affiliate):
     if not has_affiliate:
