@@ -40,7 +40,8 @@ def mtext(d, xy, text, f, fill):
     x, y = xy
     for l, t in _runs(text):
         ft = f.lat if l else f.jp
-        dy = int(f.size * 0.06) if l else 0          # 英字のベースラインを日本語に合わせる
+        # 英字のベースライン（文字の底の線）を日本語のベースラインにそろえる
+        dy = (f.jp.getmetrics()[0] - f.lat.getmetrics()[0]) if l else 0
         kw = {"features": ["cv08"]} if l else {}       # Interの「I」をセリフ付きにして「l」と見分ける
         try: d.text((x, y + dy), t, font=ft, fill=fill, **kw)
         except Exception: d.text((x, y + dy), t, font=ft, fill=fill)
