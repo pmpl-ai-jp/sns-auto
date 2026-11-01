@@ -1,65 +1,97 @@
-# sns-auto：Instagram・Threads 自動運用（IT転職・ITスクール × AI活用）
+# sns-auto：Instagram・Threads 自動運用
 
-月額0〜800円ほど（AIのAPIのみ従量課金）で、投稿の生成 → ガードレールチェック → 予約投稿 → 運用ログ作成までを自動で回します。
+AIエージェントで、SNS投稿の「ネタ出し → 執筆 → チェック → 画像づくり → 公開 → 返信 → 振り返り」までを自動で回す仕組みです。
+GitHub Actions で動き、費用はAIのAPI利用料だけです（月3,000円以内に収まるよう、上限で自動停止します）。
 
-## 仕組み（全自動モード）
-6つの役割のAIエージェントが、毎日自動で回ります。
+## 全体の流れ
 
-| 役割 | タイミング | 内容 |
+| ワークフロー | タイミング（日本時間） | 内容 |
 |---|---|---|
-| 分析係 | 毎朝6:00 | 公開済み投稿の反応（Threads：返信・再投稿、IG：保存・シェア）を取得し、テーマごとの成績を出す |
-| リサーチ係 | 毎朝6:00 | テーマと、最近伸びた投稿からネタ候補を8個出す |
-| 企画係 | 毎朝6:00 | 成績の良いテーマの割合を増やす（基本割合の0.7〜1.5倍） |
-| 執筆係 | 毎朝6:00 | Threads 6本＋IGカルーセル1本を書く（上位モデルのClaude Sonnet 5.5。伸びた投稿をお手本として渡す） |
-| チェック係 | 毎回 | NGワード・数字・体験談の機械チェック＋AIの論理チェック（書いたモデルとは別のClaude Haiku 5.5）。通らなければ書き直し、最後まで通らなければ捨てる |
-| 返信係 | 1日4回 | 自分の投稿への返信・コメントに公式APIで返事（1日30件まで、お金や個別相談の話題は返さない） |
-| 公開 | 毎時 | Threadsは7・9・12・15・19・22時、IGは20時に公開 |
-| 週次 | 月曜9:00 | トークン更新、noteの運用ログ下書き |
+| generate | 毎日 6:00 | 分析 → トレンド調査（週1回）→ ネタ出し → 執筆 → 文章チェック → 画像づくり → デザインチェック。結果を `queue/` に保存 |
+| publish | 毎時5分 | 決まった時刻に、チェックを通った投稿（`approved`）を公開 |
+| reply | 9:30 / 13:30 / 17:30 / 21:30 | 自分の投稿への返信・コメントに、公式APIで返事 |
+| weekly | 毎週月曜 9:00 | トークン更新（Threads）と、note用の運用ログ下書きを `note_drafts/` に作成 |
 
-## 使うAIモデル
-| 役割 | モデル | 料金（100万トークンあたり） |
+### 投稿の本数と時刻
+| 媒体 | 本数 | 公開時刻 |
 |---|---|---|
-| 執筆 | Claude Sonnet 5.5 | 入力2ドル／出力10ドル |
-| リサーチ・企画・返信・論理チェック | Claude Haiku 5.5 | 入力0.10ドル／出力0.50ドル |
+| Instagram（カルーセル8〜10枚） | 1日1本 | 20時台 |
+| Threads | 1日4本 | 8・12・19・22時台 |
+| 自動返信 | 1日10件まで（最初の14日間）／30件まで（その後） | — |
+| note | 運用ログの下書きを週1本作成。**公開は手作業** | — |
 
-月の見込みは400〜1,000円。`config/settings.yaml` の `models` を書き換えれば、Geminiにも戻せます（その場合は `prices` に料金を追加）。
+## AIの役割分担
 
-## 立ち上げ期間（最初の14日間）
-最初に投稿を作った日から14日間は、自動で安全側の設定になります。期間が終わると、何もしなくても通常の設定に戻ります。
-
-| 項目 | 立ち上げ期間 | 通常 |
+| 役割 | モデル | 内容 |
 |---|---|---|
-| Threadsの投稿 | 1日4本（8・12・19・22時） | 1日6本 |
-| 自動返信 | 1日10件まで | 1日30件まで |
-| PR投稿 | 出さない | `auto_ok: true` の案件のみ |
+| トレンド調査 | Claude Sonnet ＋ Web検索 | 週1回、話題になっていることを調べて `data/trend.json` に保存。間の日はそれを使う |
+| ネタ出し | Claude Sonnet | トレンド・経歴・伸びた投稿・過去のネタ一覧から、重複しないネタを出す |
+| 執筆 | Claude Sonnet | 結論から書く。伸びた投稿の構成をお手本にする |
+| 文章チェック | Claude Haiku | 誇張・事実の誤り・経歴にない体験談などを止める。細かい改善点は1回だけ磨いて公開 |
+| デザインチェック | Claude Haiku（画像を見る） | 文字のはみ出し・単語の途中での改行・ラベルの重複などを止める |
+| 返信 | Claude Haiku | 短くお礼と補足。お金・個別相談・批判的な内容には返さない |
+| 運用ログ | Claude Sonnet | 1週間の数字から、読み物としてのnote下書きを書く |
+| 分析 | （AIなし） | 反応の数字を取得し、伸びたテーマの割合を自動で増やす |
 
-日数や値は `config/settings.yaml` の `warmup` で変えられます。
+モデルは `config/settings.yaml` の `models` で変えられます。
 
-## 安全装置（全自動でも止まる仕組み）
-- **予算上限**：AIの費用を呼び出しごとに記録し、月2,500円に達したらその月のAI処理を止めます（`data/cost/`）。
-- **公開できない投稿は捨てる**：チェックで問題が残った投稿は、人の確認待ちにせず破棄します。
-- **PR投稿**：`affiliates.yaml` で `auto_ok: true` にした案件だけ、自動で【PR】付きで公開します。
-- **連続エラーで停止**：公開が3回続けて失敗したら、`KILL_SWITCH` を自動でONにします。
-- **自動化しないこと**：いいね・フォロー・DMの自動化（規約違反・停止リスク）、noteの自動公開（個人向けAPIなし）。
+## 安全装置
+
+- **予算上限**：AIとWeb検索の費用を呼び出しごとに記録し、月2,500円に達したらその月のAI処理を止めます（`data/cost/`）。
+- **チェックで止まった投稿は捨てる**：人の確認待ちにせず、公開しません（`"status": "rejected"`）。
+- **体験談は経歴ファイルの事実だけ**：経歴にない体験を一人称で書いたら止めます。
+- **数字は事実の表から**：`data/facts.yaml` にない金額や率が出たら止めます。
+- **PR表記**：アフィリエイトの投稿には【PR】を自動で付けます。`data/affiliates.yaml` で `auto_ok: true` にした案件だけ公開します。最初の14日間はPR投稿を出しません。
+- **連続エラーで停止**：公開が3回続けて失敗したら、`config/KILL_SWITCH` を自動で `ON` にします。
+- **自動化しないこと**：いいね・フォロー・DMの自動化（規約違反・停止リスク）と、noteの自動公開（個人向けの公式APIがないため）。
+
+## デザイン
+
+- 濃紺のグラデーションに、シアンのアクセント。スライドの種類（表紙・WHY・ポイント・チェックリスト・最後）ごとにレイアウトが変わります。
+- フォント：日本語は Zen Kaku Gothic New、英数字は Inter（`fonts/`。どちらも SIL Open Font License）。
+- 改行：日本語は BudouX（Apache License 2.0）で文節に分け、言葉の途中で改行しないようにしています（`src/vendor/`）。
 
 ## 人がやること
-- 最初のセットアップだけ。あとは見なくても回ります。
-- noteは `note_drafts/` の下書きを、気が向いたときに貼って公開します（ここだけは手作業）。
-- `KILL_SWITCH` がONになったら、原因（多くはトークン切れ）を直してOFFに戻します。
+
+- 最初のセットアップ。
+- `note_drafts/` の下書きを見直して、noteに公開する（週1回）。
+- `KILL_SWITCH` が `ON` になったら原因を直して `OFF` に戻す（多くはトークン切れ）。
+- 最初の1週間は、公開された投稿を1日1回ざっと見る。
+- AIのクレジット残高が少なくなったら買い足す。
+
+## 設定ファイル
+
+| ファイル | 内容 |
+|---|---|
+| `config/settings.yaml` | 投稿本数、モデル、料金、予算上限、トレンド調査の間隔、立ち上げ期間 |
+| `config/guardrails.yaml` | NGワード、体験談らしい表現のパターン、PR表記 |
+| `config/KILL_SWITCH` | `ON` で全処理を止める |
+| `config/profile.example.yaml` | 経歴ファイルのひな形（本物は Secrets に置く） |
+| `data/topics.yaml` | 投稿テーマとその割合 |
+| `data/facts.yaml` | 投稿に使ってよい数字の表 |
+| `data/affiliates.yaml` | 提携したアフィリエイト案件 |
 
 ## セットアップ
 
-1. **このリポジトリを公開リポジトリとしてGitHubに作成します**（Actions無料、Instagram画像の公開URLに使います）。`config/settings.yaml` の `public_base_url` を書き換えます。
-2. **Claude APIキー**：Anthropic Consoleで発行します。使いすぎ防止のため、Console側でも月の利用上限（例：20ドル）を設定しておくと二重の安全装置になります。Geminiを使う場合は、Google AI StudioでGemini APIキーを発行します。
-3. **Instagram**：アカウントをプロアカウント（クリエイター）に切り替えます → Meta for Developersでアプリを作成 → 「Instagram API with Instagram Login」を追加 → 自分を **Instagramテスター** に登録 → 権限 `instagram_business_basic`, `instagram_business_content_publish`, `instagram_business_manage_comments`, `instagram_business_manage_insights` で長期トークンを発行します。
-4. **Threads**：同じアプリに Threads API を追加 → 自分をThreadsテスターに登録 → `threads_basic`, `threads_content_publish`, `threads_manage_insights`, `threads_read_replies`, `threads_manage_replies` で長期トークン（60日）を発行します。
-5. **GitHub PAT**：fine-grained tokenで、このリポジトリの「Secrets: Read and write」権限を付けます（トークン自動更新用）。
-6. **Secretsを登録**（Settings → Secrets and variables → Actions）：
-   `ANTHROPIC_API_KEY`（Geminiを使う場合は `GEMINI_API_KEY`）, `PROFILE_YAML`（経歴ファイルの中身をそのまま貼る）, `IG_USER_ID`, `IG_TOKEN`, `THREADS_USER_ID`, `THREADS_TOKEN`, `GH_PAT`
-7. Actionsタブから `generate` を手動実行 → `queue/` を確認 → `publish` を手動実行して、テストします。
+1. このリポジトリを GitHub に置く（公開リポジトリなら Actions は無料。Instagram の画像は公開URLで渡します）。
+2. `config/settings.yaml` の `public_base_url` を自分のリポジトリに合わせる。
+3. **Claude APIキー**：Anthropic Console で発行。クレジットは少額から、自動チャージはオフにしておく。
+4. **Instagram**：プロアカウント（クリエイター）に切り替え → Meta for Developers でアプリを作成 →「Instagramでメッセージとコンテンツを管理」を追加 → ビジネスポートフォリオをつなぐ → 自分を Instagram テスターに追加して承認 → 統合ログインの設定でトークンを発行（無期限）。
+5. **Threads**（使う場合）：同じアプリに Threads API を追加し、長期トークン（60日。週1回自動更新）を発行。`threads_per_day` を 4 にする。
+6. **Secrets に登録**（Settings → Secrets and variables → Actions）：
+
+| 名前 | 中身 |
+|---|---|
+| `ANTHROPIC_API_KEY` | Claude APIキー |
+| `IG_USER_ID` / `IG_TOKEN` | Instagram のユーザーIDとトークン |
+| `PROFILE_YAML` | 経歴ファイルの中身（ひな形を参考に作る） |
+| `THREADS_USER_ID` / `THREADS_TOKEN` | Threads を使う場合 |
+| `GH_PAT` | Threads のトークン自動更新を使う場合（Secrets の読み書き権限） |
+
+7. `config/KILL_SWITCH` を `OFF` にし、Actions から `generate` を手動実行して `queue/` を確認する。
 
 ## 注意
-- 経歴（`config/profile.yaml`）は公開リポジトリに置きません。Secretsの `PROFILE_YAML` から実行時に書き出し、`.gitignore` でコミットされないようにしています。
-- 公開リポジトリなので、`queue/` の下書きも外から見えます。気になる場合は非公開リポジトリ（月2,000分の無料枠）にし、画像の置き場所をCloudflare R2などの無料枠に変えてください。
+
+- 経歴（`config/profile.yaml`）は公開リポジトリに置きません。Secrets の `PROFILE_YAML` から実行時に書き出し、`.gitignore` でコミットされないようにしています。
+- 公開リポジトリなので、`queue/` の下書きや反応の数字は外から見えます。
 - 写実的な人物画像は使いません（AIラベルや誤認のリスクがあるため）。
-- noteは自動投稿しません（個人向けの公式APIがなく、規約上のリスクもあるため）。
