@@ -1,5 +1,5 @@
 """毎朝実行: リサーチ係 → 企画係 → 執筆係 → チェック係 の順に動き、当日分を queue/ に保存"""
-import random, json
+import random, json, datetime
 from .common import load, now, save_post, killed, ROOT, in_warmup, setting
 from .llm import generate_json
 from .guard import check, apply_pr, logic_check, design_check, G
@@ -37,6 +37,12 @@ def trend():
     """トレンド調査係: ウェブ検索で、今話題になっていることを集める（失敗しても投稿づくりは止めない）"""
     tc = S.get("trend") or {}
     if not tc.get("enabled"): return []
+    cache = ROOT / "data" / "trend.json"
+    if cache.exists():                                  # 保存した結果がまだ新しければ、検索せずにそれを使う
+        c = json.loads(cache.read_text(encoding="utf-8"))
+        age = (now().date() - datetime.date.fromisoformat(c["date"])).days
+        if age < tc.get("every_days", 7):
+            print(f"トレンド: {c['date']} の調査結果を使用"); return c["topics"]
     try:
         r = generate_json(f"""日本のSNS（Instagram・Threads・note）で、次の分野について、直近1〜2週間に話題になっていることを調べてください。
 分野: 仕事でのAI活用（ChatGPT・Claude・Copilot等の新機能や使い方）、IT業界のキャリア・転職、SIerと事業会社、プロジェクトマネジメント
@@ -44,9 +50,15 @@ def trend():
 この発信者が自分の経験と結びつけて語れる話題を優先する。噂や真偽が不確かな話は除く。
 JSON: {{"topics": [{{"topic": "1行", "why": "なぜ今話題か1行", "source": "参照したURL"}}]}}（5〜8個）""",
             0.5, role="planner", web=tc.get("max_searches", 4), max_tokens=6000)
-        return r.get("topics", [])
+        topics = r.get("topics", [])
+        if topics:
+            cache.parent.mkdir(exist_ok=True)
+            cache.write_text(json.dumps({"date": now().date().isoformat(), "topics": topics}, ensure_ascii=False, indent=2), encoding="utf-8")
+        print(f"トレンド: 新しく調査（{len(topics)}件）"); return topics
     except Exception as e:
-        print("トレンド調査をスキップ:", e); return []
+        print("トレンド調査をスキップ:", e)
+        if cache.exists(): return json.loads(cache.read_text(encoding="utf-8"))["topics"]   # 失敗したら前回の結果で続ける
+        return []
 
 def research():
     """ネタ出し係: トレンド・経歴・過去の投稿・伸びた投稿をもとに、今日のネタ候補を出す"""
