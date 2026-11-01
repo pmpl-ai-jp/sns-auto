@@ -1,4 +1,5 @@
-"""週1回: 60日トークンを更新し、GitHub Secretsを上書き（gh CLIを使用）"""
+"""週1回: 60日トークンを更新し、GitHub Secretsを上書き（gh CLIを使用）
+Secretsが未登録のトークンはスキップする（Threadsを後から始める場合など）"""
 import os, subprocess, requests
 
 def refresh(url, grant, token):
@@ -8,7 +9,14 @@ def refresh(url, grant, token):
 def set_secret(name, value):
     subprocess.run(["gh", "secret", "set", name, "--body", value], check=True)
 
+TARGETS = [
+    ("IG_TOKEN", "https://graph.instagram.com/refresh_access_token", "ig_refresh_token"),
+    ("THREADS_TOKEN", "https://graph.threads.net/refresh_access_token", "th_refresh_token"),
+]
+
 if __name__ == "__main__":
-    set_secret("THREADS_TOKEN", refresh("https://graph.threads.net/refresh_access_token", "th_refresh_token", os.environ["THREADS_TOKEN"]))
-    set_secret("IG_TOKEN", refresh("https://graph.instagram.com/refresh_access_token", "ig_refresh_token", os.environ["IG_TOKEN"]))
-    print("tokens refreshed")
+    for name, url, grant in TARGETS:
+        tok = os.environ.get(name)
+        if not tok:
+            print(f"{name}: 未登録のためスキップ"); continue
+        set_secret(name, refresh(url, grant, tok)); print(f"{name}: 更新しました")
