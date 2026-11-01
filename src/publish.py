@@ -4,7 +4,7 @@ from .common import load, now, iter_posts, save_post, killed
 
 S = load("config/settings.yaml")
 TH = "https://graph.threads.net/v1.0"
-IG = "https://graph.instagram.com/v21.0"
+IG = __import__("src.common", fromlist=["load"]).load("config/settings.yaml")["ig_graph_base"]
 from .common import in_warmup
 SLOTS = {"threads": [7, 9, 12, 15, 19, 22], "instagram": [20]}
 if in_warmup(): SLOTS["threads"] = [8, 12, 19, 22]  # 立ち上げ期間中は1日4回  # JSTの投稿時刻

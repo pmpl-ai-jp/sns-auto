@@ -2,7 +2,7 @@
 import os, json, requests
 from collections import defaultdict
 from .common import iter_posts, save_post, ROOT, now
-TH = "https://graph.threads.net/v1.0"; IG = "https://graph.instagram.com/v21.0"
+TH = "https://graph.threads.net/v1.0"; IG = __import__("src.common", fromlist=["load"]).load("config/settings.yaml")["ig_graph_base"]
 
 def threads_metrics(mid):
     r = requests.get(f"{TH}/{mid}/insights", params={"metric": "views,likes,replies,reposts,quotes",
