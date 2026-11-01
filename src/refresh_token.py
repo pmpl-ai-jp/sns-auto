@@ -10,7 +10,7 @@ def set_secret(name, value):
     subprocess.run(["gh", "secret", "set", name, "--body", value], check=True)
 
 TARGETS = [
-    ("IG_TOKEN", "https://graph.instagram.com/refresh_access_token", "ig_refresh_token"),
+    # IG_TOKEN はシステムユーザートークン（無期限）なので更新しない
     ("THREADS_TOKEN", "https://graph.threads.net/refresh_access_token", "th_refresh_token"),
 ]
 

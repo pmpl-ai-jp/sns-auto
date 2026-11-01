@@ -4,7 +4,7 @@ from .common import iter_posts, ROOT, now, killed, load, setting
 from .llm import generate_json
 from .guard import check
 from .budget import BudgetExceeded
-TH = "https://graph.threads.net/v1.0"; IG = "https://graph.instagram.com/v21.0"
+TH = "https://graph.threads.net/v1.0"; IG = __import__("src.common", fromlist=["load"]).load("config/settings.yaml")["ig_graph_base"]
 S = load("config/settings.yaml"); PR = load("config/profile.yaml")
 # 自動で返さず、そのまま残す内容（お金・個別相談・攻撃的な内容など）
 SKIP = ["いくら", "稼げ", "年収", "紹介して", "DM", "詐欺", "怪しい", "嘘", "ステマ", "訴"]
