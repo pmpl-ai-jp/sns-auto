@@ -2,7 +2,7 @@ name: weekly
 on:
   schedule: [{cron: '0 0 * * 1'}]    # 毎週月曜 9:00 JST
   workflow_dispatch:
-permissions: { contents: write }
+permissions: { contents: write, issues: write }
 concurrency: repo-write
 jobs:
   weekly:
@@ -17,15 +17,18 @@ jobs:
         env:
           PROFILE_YAML: ${{ secrets.PROFILE_YAML }}
       - run: python -m src.refresh_token
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
       - run: python -m src.weekly_log
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       - name: commit
+        if: always()
         run: |
           git config user.name bot && git config user.email bot@users.noreply.github.com
-          git add -A && (git diff --cached --quiet || git commit -m "auto: $(date +%F-%H)") && git push
+          git add -A && (git diff --cached --quiet || git commit -m "auto: $(date +%F-%H)") && git pull --rebase && git push
