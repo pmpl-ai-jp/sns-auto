@@ -72,19 +72,9 @@ WEAK_HEAD = set("てでたにをはがのもと")  # 助詞・接続の文字は
 NO_TAIL = set("（「『【〈《")
 
 def _units(para):
-    """改行してよい単位に分ける。文節（BudouX）を基本にし、記号の前後の扱いを整える"""
-    out = []
-    for ph in phrases(para):
-        # 「・」「（」「「」の直前では切ってよい／行頭禁則の文字は前に付ける
-        buf = ""
-        for ch in ph:
-            if ch in "・「（『" and buf and buf[-1] not in "「（『":
-                out.append(buf); buf = ch
-            else:
-                buf += ch
-        if buf: out.append(buf)
+    """改行してよい単位（文節）に分ける。行頭禁則の文字は前に、開き括弧は後ろにくっつける"""
     merged = []
-    for u in out:
+    for u in phrases(para):
         if merged and (u[0] in NO_HEAD or merged[-1][-1] in NO_TAIL):
             merged[-1] += u
         else:
@@ -92,38 +82,47 @@ def _units(para):
     return merged
 
 def _greedy(d, units, f, max_w):
-    lines, line = [], ""
+    """文節単位で詰める。文節が1行に入らないときだけ文字で切る（そのときは split=True）"""
+    lines, line, split = [], "", False
     for u in units:
         if mlen(d, line + u, f) <= max_w or not line:
-            line += u; continue
-        if mlen(d, u, f) <= max_w:
-            lines.append(line); line = u; continue
-        for ch in u:                               # 長すぎる単位だけ文字で切る
-            if mlen(d, line + ch, f) <= max_w or not line or ch in NO_HEAD: line += ch
-            else: lines.append(line); line = ch
+            if mlen(d, line + u, f) > max_w and not line:   # 1つの文節が長すぎる
+                split = True; buf = ""
+                for ch in u:
+                    if mlen(d, buf + ch, f) <= max_w or not buf or ch in NO_HEAD: buf += ch
+                    else: lines.append(buf); buf = ch
+                line = buf
+            else:
+                line += u
+            continue
+        lines.append(line); line = u
+        if mlen(d, line, f) > max_w:
+            split = True; buf = ""
+            for ch in u:
+                if mlen(d, buf + ch, f) <= max_w or not buf or ch in NO_HEAD: buf += ch
+                else: lines.append(buf); buf = ch
+            line = buf
     lines.append(line)
-    return [l for l in lines if l]
+    return [l for l in lines if l], split
 
-def wrap(d, text, f, max_w):
-    """言葉の途中で改行しない。同じ行数のまま、各行の長さがそろうように幅を詰めて組み直す"""
-    lines = []
+def wrap(d, text, f, max_w, info=None):
+    """言葉の途中で改行しない。「。」の後ろはなるべく改行する。最後の行が極端に短いときだけ整える"""
+    lines, split_any = [], False
     paras = []
-    for para in str(text).split("\n"):              # 「。」の後ろは、まず文の区切りとして改行候補にする
+    for para in str(text).split("\n"):
         parts = [x for x in re.split(r"(?<=。)", para) if x]
         if len(parts) > 1 and all(mlen(d, x, f) <= max_w for x in parts): paras += parts
         else: paras.append(para)
     for para in paras:
         units = _units(para)
-        best = _greedy(d, units, f, max_w)
-        n = len(best)
-        if n >= 2:                                 # 行数を変えずに、最も短い幅で組めるものを探す
-            lo, hi = max_w * 0.55, max_w
-            for _ in range(12):
-                mid = (lo + hi) / 2
-                trial = _greedy(d, units, f, mid)
-                if len(trial) <= n: hi = mid; best = trial
-                else: lo = mid
-        lines += best
+        ls, sp = _greedy(d, units, f, max_w); split_any |= sp
+        # 最後の行が4文字以下なら、前の行の最後の文節を1つ送る（言葉の途中では切らない）
+        if len(ls) >= 2 and len(ls[-1]) <= 4 and not sp:
+            ph = _units(ls[-2])
+            if len(ph) >= 2 and mlen(d, ph[-1] + ls[-1], f) <= max_w:
+                ls[-2] = "".join(ph[:-1]); ls[-1] = ph[-1] + ls[-1]
+        lines += ls
+    if info is not None: info["split"] = split_any
     return lines
 
 def _clean(text, ls):
@@ -131,16 +130,19 @@ def _clean(text, ls):
     return all(l.endswith("。") or "。" not in l for l in ls)
 
 def fit(d, text, mk, max_w, max_lines, start, min_size):
-    """max_lines 行に収まる最大の文字サイズを探す。文の区切りできれいに改行できるサイズを優先"""
-    size, fallback = start, None
+    """max_lines 行に収まる最大の文字サイズを探す。
+    言葉の途中で切れない＞文の区切りで改行できる＞大きい、の順で優先する"""
+    size, cands = start, []
     while size >= min_size:
-        f = mk(size); ls = wrap(d, text, f, max_w)
+        f = mk(size); info = {}; ls = wrap(d, text, f, max_w, info)
         if len(ls) <= max_lines:
-            if _clean(text, ls) or size - 8 < min_size: return f, ls, size, True
-            if fallback is None: fallback = (f, ls, size, True)
-            if size <= start - 12: return fallback        # 小さくしすぎない（3段階まで）
+            score = (0 if not info["split"] else 2) + (0 if _clean(text, ls) else 1)
+            cands.append((score, -size, f, ls, size))
+            if score == 0: break
         size -= 4
-    if fallback: return fallback
+    if cands:
+        cands.sort(key=lambda c: (c[0], c[1])); _, _, f, ls, size = cands[0]
+        return f, ls, size, cands[0][0] < 2
     f = mk(min_size); return f, wrap(d, text, f, max_w), min_size, False
 
 def background(seed):
@@ -199,7 +201,9 @@ def draw_slide(i, n, s, pr, point_no):
         d.rounded_rectangle([M, y, M + tw, y + 52], radius=26, outline=CYAN, width=2)
         mtext(d, (M + 22, y + 8), tag, bold(30), CYAN); y += 100
         tf, tl, ts, ok = fit(d, s["title"], bold, max_w, 3, 96, 60)
-        if not ok: warn.append("表紙のタイトルが長すぎる")
+        if not ok: warn.append("表紙のタイトルが長すぎて、言葉の途中で改行される。16字以内に短くする")
+        if s["title"].rstrip().endswith(("？", "?")): warn.append("表紙のタイトルが問いかけで終わっている。読者がとる行動で言い切る形にする")
+        if any(w in s.get("body", "") for w in ("保存版", "PR")): warn.append("表紙の補足に「保存版」「PR」が入っていてラベルと重複している。補足からは消す")
         for line in tl:
             mtext(d, (M, y), line, tf, WHITE); y += int(ts * 1.28)
         y += 30; d.rectangle([M, y, M + 120, y + 8], fill=CYAN); y += 50
@@ -241,7 +245,11 @@ def draw_slide(i, n, s, pr, point_no):
         y += 36
         top = y; inner = max_w - 80
         if kind == "checklist":
-            items = [x.strip(" ・-□") for x in s.get("body", "").replace("・", "\n").split("\n") if x.strip(" ・-□")]
+            body = s.get("body", "")
+            # 改行があれば改行で区切る（「抽出・変換」のような語中の「・」では区切らない）。なければ行頭の「・」で区切る
+            raw = body.split("\n") if "\n" in body.strip() else re.split(r"(?:^|(?<=[^\s・]))・(?=[^・])", body) if body.startswith("・") else [body]
+            items = [x.strip(" ・-□") for x in raw if x.strip(" ・-□")]
+            if len(items) > 6: warn.append(f"{i+1}枚目のチェックリストが6項目を超えている。6項目以内にまとめる")
             f = reg(40); rows = []
             for it in items[:6]: rows.append(wrap(d, it, f, inner - 70))
             h = sum(len(r) * 60 + 30 for r in rows) + 50
@@ -254,7 +262,8 @@ def draw_slide(i, n, s, pr, point_no):
             bottom = top + h
         else:
             bf, bl, bs, ok = fit(d, s.get("body", ""), reg, inner, 7, 42, 32)
-            if not ok: warn.append(f"{i+1}枚目の本文が長すぎる")
+            if not ok: warn.append(f"{i+1}枚目の本文が長すぎて、言葉の途中で改行される。短くする")
+            if re.search(r"(^|\n)(悩み|例|質問|ポイント)：", s.get("body", "")): warn.append(f"{i+1}枚目の本文に「例：」「質問：」のようなラベルが入っている。ラベルを付けず自然な文にする")
             h = len(bl) * int(bs * 1.6) + 80
             im = card(im, [M, top, W - M, top + h]); d = ImageDraw.Draw(im); yy = top + 40
             d.rectangle([M, top + 30, M + 6, top + h - 30], fill=CYAN)
