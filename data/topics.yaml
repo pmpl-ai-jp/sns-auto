@@ -1,0 +1,56 @@
+# 投稿テーマの配分。affiliate: true のテーマだけ、affiliates.yaml の同じキーの案件を付ける
+stages:
+  ai_pm:
+    name: PM・設計の考え方でAIを使いこなす（経験者・非エンジニア共通の入口）
+    ratio: 0.25
+    examples:
+    - AIへの頼み方は要件定義と同じ
+    - AIの出力をレビューする3つの観点
+    - 計画で結果の8割が決まる
+  ai_logic:
+    name: ロジカルシンキング・ロジカルプレゼンテーション × AI（伝わる説明・報告・依頼）
+    ratio: 0.1
+    examples:
+    - 結論→理由→具体例の順で話すと調整が早く進む
+    - AIに頼む前に論点を分けて書く
+    - 上司への報告をAIでピラミッド構造に整える
+    - ベンダーへの依頼は事実と要望を分けて書く
+  ai_automation:
+    name: バッチ処理の考え方で業務を自動化する
+    ratio: 0.25
+    examples:
+    - 取り出す・変える・置くに分けると自動化できる
+    - GASやPythonをAIに書かせて定型作業をなくす
+  career_exp:
+    name: 経験者エンジニアのキャリア（SIerと事業会社、社内SE、PM）
+    ratio: 0.15
+    examples:
+    - SIerと事業会社で仕事の中身はどう変わるか
+    - 社内SEに求められるのは調整とレビュー
+    - 職務経歴書でベンダーコントロールをどう書くか
+  learn_it:
+    name: 非エンジニアがITを学び始める手段（スクールの選び方など）
+    ratio: 0.1
+    examples:
+    - スクールの無料カウンセリングで聞くべきこと
+    - 独学とスクールの違い
+  career_exp_pr:
+    name: 経験者向け転職エージェントの使い方（PR）
+    ratio: 0.07
+    affiliate: true
+    examples:
+    - エージェントに経歴を伝えるときのコツ
+    - SIerから事業会社へ移る前に確認したいこと
+  learn_it_pr:
+    name: ITスクールの無料カウンセリング活用（PR）
+    ratio: 0.03
+    affiliate: true
+    examples:
+    - カウンセリング前に決めておくこと
+    - 給付金の対象かを確認する（条件つき）
+  log:
+    name: AIエージェントでのSNS自動化の運用ログ（noteへの導線）
+    ratio: 0.05
+    examples:
+    - 今週の自動投稿の数字と失敗
+    - トークン切れで止まった話

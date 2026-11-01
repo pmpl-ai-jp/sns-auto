@@ -1,0 +1,8 @@
+# 公開リポジトリには本物の経歴を置かない。
+# 本物は GitHub Secrets の PROFILE_YAML に登録し、実行時に config/profile.yaml として書き出す。
+profile:
+  current_role: ""
+  years_in_it: null
+  career_history: []
+episodes: []
+not_me: []

@@ -1,0 +1,10 @@
+# 人が月1回更新する「公式の数字」だけを置く。AIはここ以外の数字を書かない。
+# updated: 2026-10-31
+facts:
+  - id: gemini_cost
+    text: "この自動化の月額コストは約{cost}円"
+    value: { cost: 500 }
+# 例（公式ページで確認してから有効化）:
+#  - id: kyufukin
+#    text: "専門実践教育訓練給付金は条件を満たすと受講料の最大80%（上限あり）"
+#    source: https://www.mhlw.go.jp/
