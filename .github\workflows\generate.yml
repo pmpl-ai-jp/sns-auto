@@ -1,0 +1,41 @@
+name: generate
+on:
+  schedule: [{cron: '0 21 * * *'}]   # 毎日 6:00 JST
+  workflow_dispatch:
+permissions: { contents: write }
+concurrency: repo-write
+jobs:
+  gen:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r requirements.txt
+      - name: write profile from secret
+        run: printf '%s' "$PROFILE_YAML" > config/profile.yaml
+        env:
+          PROFILE_YAML: ${{ secrets.PROFILE_YAML }}
+      - run: sudo apt-get install -y fonts-noto-cjk
+      - run: python -m src.analyze
+        continue-on-error: true
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      - run: python -m src.generate
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      - name: commit
+        if: always()
+        run: |
+          git config user.name bot && git config user.email bot@users.noreply.github.com
+          git add -A && (git diff --cached --quiet || git commit -m "auto: $(date +%F-%H)") && git pull --rebase && git push
