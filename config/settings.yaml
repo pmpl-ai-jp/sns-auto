@@ -1,12 +1,12 @@
 # 投稿スケジュール（JST）
 timezone: Asia/Tokyo
-threads_per_day: 0   # Threadsアカウントができたら 6 に戻す
+threads_per_day: 0   # Threadsアカウントができたら 4 に戻す（予算に余裕を持たせるため6本にはしない）
 instagram_per_day: 1
 # 公開リポジトリのraw URL（Instagram画像の公開URLに使う）
 # 例: https://raw.githubusercontent.com/<user>/<repo>/main
 public_base_url: "https://raw.githubusercontent.com/pmpl-ai-jp/sns-auto/main"
 persona: >
-  IT業界25年、SIer20年と事業会社SE5年の両方を経験し、現在は外資系IT企業に勤めるプロジェクトリーダー。
+  IT業界25年。SIer→事業会社SE（5年）→外資系SIerと移り、受注側と発注側の両方を知り、現在は外資系SIerでPM・PLを担当している。
   現場で見てきたことをもとに、AIで仕事を自動化する方法と、IT職のキャリアの実際を
   非エンジニアにも分かる言葉で伝える。説明は結論から始め、根拠を整理して示す
   （ロジカルシンキング・ロジカルプレゼンテーション）書き方を徹底する。自分の経験は config/profile.yaml にあることだけを話す。
@@ -17,6 +17,7 @@ models:
   writer: claude-sonnet-5-5      # 執筆（品質の要。ここだけ上位モデル）
   light: claude-haiku-5-5        # リサーチ・企画・返信
   checker: claude-haiku-5-5      # 論理チェック（書いたモデルとは別のモデルにする）
+  planner: claude-sonnet-5-5     # トレンド調査・ネタ出し・運用ログ（品質を上げるため上位モデル）
 # モデル名 → 提供元。Geminiに戻すときは models の値を gemini-... に変えるだけ
 providers:
   claude-: anthropic
@@ -42,3 +43,9 @@ warmup:
 
 # InstagramのAPIの送り先。統合ログイン（システムユーザートークン）は graph.facebook.com を使う
 ig_graph_base: "https://graph.facebook.com/v21.0"
+
+# トレンド調査（Claudeのウェブ検索。1,000回で$10）
+trend:
+  enabled: true
+  max_searches: 4        # 1日あたりの検索回数の上限
+web_search_usd: 0.01     # 検索1回あたりの料金（予算上限の計算に使う）
