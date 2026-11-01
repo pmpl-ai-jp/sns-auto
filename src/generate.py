@@ -27,17 +27,42 @@ def weights():
         w[k] = r
     return w
 
+def history(n=40):
+    """過去の投稿のネタ一覧（同じ切り口を繰り返さないため）"""
+    from .common import iter_posts
+    xs = [p for _, p in iter_posts() if p.get("idea")]
+    return [p["idea"] for p in xs[-n:]]
+
+def trend():
+    """トレンド調査係: ウェブ検索で、今話題になっていることを集める（失敗しても投稿づくりは止めない）"""
+    tc = S.get("trend") or {}
+    if not tc.get("enabled"): return []
+    try:
+        r = generate_json(f"""日本のSNS（Instagram・Threads・note）で、次の分野について、直近1〜2週間に話題になっていることを調べてください。
+分野: 仕事でのAI活用（ChatGPT・Claude・Copilot等の新機能や使い方）、IT業界のキャリア・転職、SIerと事業会社、プロジェクトマネジメント
+発信者: {S["persona"]}
+この発信者が自分の経験と結びつけて語れる話題を優先する。噂や真偽が不確かな話は除く。
+JSON: {{"topics": [{{"topic": "1行", "why": "なぜ今話題か1行", "source": "参照したURL"}}]}}（5〜8個）""",
+            0.5, role="planner", web=tc.get("max_searches", 4), max_tokens=6000)
+        return r.get("topics", [])
+    except Exception as e:
+        print("トレンド調査をスキップ:", e); return []
+
 def research():
-    """リサーチ係: 今日のネタ候補を出す（外部取得はせず、テーマ例と過去の伸びた投稿から発想）"""
-    p = perf()
+    """ネタ出し係: トレンド・経歴・過去の投稿・伸びた投稿をもとに、今日のネタ候補を出す"""
+    p = perf(); tr = trend()
     return generate_json(f"""次の人物がSNSで発信します。今日のネタ候補を8個出してください。
 人物像: {S["persona"]}
 この人の経歴（年数や順番はここに書かれたものだけを使う。推測で数字を作らない）:
 {json.dumps(PR.get("profile", {}), ensure_ascii=False)}
-各ネタは「誰の・どんな悩みに・何を持ち帰ってもらうか」が分かる1行にする。
-テーマ一覧: {json.dumps({k: v["name"] for k, v in T.items()}, ensure_ascii=False)}
+今話題になっていること（使えるものだけ使う。無理に入れない）:
+{json.dumps(tr, ensure_ascii=False)}
 最近伸びた投稿（同じ型で切り口を変える参考に）: {p["top_posts"][:3]}
-JSON: {{"ideas": [{{"stage": "テーマのキー", "idea": "1行"}}]}}""", 0.9)["ideas"]
+これまでに出したネタ（同じ切り口は出さない）: {history()}
+各ネタは「誰の・どんな悩みに・何を持ち帰ってもらうか」が分かる1行にする。
+フォローしたくなる理由を作るため、8個のうち2個は、続きものにできる（シリーズ化できる）ネタにする。
+テーマ一覧: {json.dumps({k: v["name"] for k, v in T.items()}, ensure_ascii=False)}
+JSON: {{"ideas": [{{"stage": "テーマのキー", "idea": "1行"}}]}}""", 0.9, role="planner")["ideas"]
 
 BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 テーマ: {stage}

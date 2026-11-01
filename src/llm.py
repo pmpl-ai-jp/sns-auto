@@ -11,19 +11,21 @@ def _parse(text):
     m = re.search(r"\{.*\}", text, re.S)  # 前後に説明文が付いてもJSON部分だけ取り出す
     return json.loads(m.group(0) if m else text)
 
-def _anthropic(model, prompt, temperature, max_tokens, images=None):
+def _anthropic(model, prompt, temperature, max_tokens, images=None, web=0):
     r = requests.post("https://api.anthropic.com/v1/messages", timeout=180, headers={
         "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01",
         "content-type": "application/json"}, json={
         "model": model, "max_tokens": max_tokens,
         "system": "出力は指定されたJSONだけにしてください。説明文やコードブロックは付けないでください。",
-        "messages": [{"role": "user", "content": _content(prompt, images)}]})
+        "messages": [{"role": "user", "content": _content(prompt, images)}],
+        **({"tools": [{"type": "web_search_20250305", "name": "web_search", "max_uses": web}]} if web else {})})
     if r.status_code >= 400:  # 原因が分かるように、APIのエラー内容をログに出す
         print("Anthropic API error:", r.status_code, r.text[:1000])
     r.raise_for_status(); j = r.json()
     text = "".join(b.get("text", "") for b in j["content"] if b.get("type") == "text")
     u = j.get("usage", {})
-    return text, u.get("input_tokens", len(prompt)), u.get("output_tokens", max_tokens)
+    searches = (u.get("server_tool_use") or {}).get("web_search_requests", 0)
+    return text, u.get("input_tokens", len(prompt)), u.get("output_tokens", max_tokens), searches
 
 def _content(prompt, images):
     """画像があれば、縮小してプロンプトと一緒に送る（トークン節約のため540px）"""
@@ -38,7 +40,7 @@ def _content(prompt, images):
                       "data": base64.b64encode(buf.getvalue()).decode()}})
     return parts + [{"type": "text", "text": prompt}]
 
-def _google(model, prompt, temperature, max_tokens, images=None):
+def _google(model, prompt, temperature, max_tokens, images=None, web=0):
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     body = {"contents": [{"parts": [{"text": prompt}]}],
             "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens,
@@ -46,13 +48,13 @@ def _google(model, prompt, temperature, max_tokens, images=None):
     r = requests.post(url, params={"key": os.environ["GEMINI_API_KEY"]}, json=body, timeout=180)
     r.raise_for_status(); j = r.json(); u = j.get("usageMetadata", {})
     return (j["candidates"][0]["content"]["parts"][0]["text"], u.get("promptTokenCount", len(prompt)),
-            u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0))
+            u.get("candidatesTokenCount", 0) + u.get("thoughtsTokenCount", 0), 0)
 
-def generate_json(prompt, temperature=0.8, role="light", max_tokens=8000, images=None):
+def generate_json(prompt, temperature=0.8, role="light", max_tokens=8000, images=None, web=0):
     S = load("config/settings.yaml")
     model = S["models"][role]
     check_budget()  # 上限に達していたら例外で止める
     call = _anthropic if _provider(model, S) == "anthropic" else _google
-    text, tin, tout = call(model, prompt, temperature, max_tokens, images)
-    record(model, tin, tout)
+    text, tin, tout, searches = call(model, prompt, temperature, max_tokens, images, web)
+    record(model, tin, tout, searches)
     return _parse(text)
