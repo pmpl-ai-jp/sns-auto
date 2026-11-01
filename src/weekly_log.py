@@ -1,5 +1,5 @@
 """週1回: 運用ログ（note下書き用Markdown）を自動生成。公開は人が行う"""
-import json, datetime
+import json, datetime, os, re, requests
 from collections import Counter
 from .common import iter_posts, now, ROOT, load
 from .llm import generate_json
@@ -34,8 +34,49 @@ def main():
 - 最後に『本記事はAIを使って作成し、筆者が確認しています』と書く
 JSON: {{"title": "...", "markdown": "見出し付き本文"}}""", 0.5, role="planner", max_tokens=8000)
     d = ROOT / "note_drafts"; d.mkdir(exist_ok=True)
-    p = d / f"{now():%Y%m%d}_weekly.md"
-    p.write_text(f"# {out['title']}\n\n{out['markdown']}\n", encoding="utf-8"); print(p)
+    stem = f"{now():%Y%m%d}_weekly"
+    (d / f"{stem}.md").write_text(f"# {out['title']}\n\n{out['markdown']}\n", encoding="utf-8")
+    text = to_note_text(out["markdown"])
+    (d / f"{stem}.txt").write_text(text, encoding="utf-8")
+    from .render import render_note_header
+    img = d / f"{stem}_header.jpg"; render_note_header(out["title"], img)
+    notify(out["title"], text, f"note_drafts/{stem}_header.jpg")
+    print(d / f"{stem}.txt")
+
+def to_note_text(md):
+    """noteにそのまま貼れる形にする（Markdownの記号を外し、表は箇条書きにする）"""
+    lines = []
+    for line in md.splitlines():
+        s = line.strip()
+        if re.match(r"^\|?\s*:?-{3,}", s): continue                    # 表の区切り行
+        if s.startswith("|") and s.endswith("|"):                       # 表の行 → 箇条書き
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            lines.append("・" + "：".join(c for c in cells if c)); continue
+        m = re.match(r"^(#{1,6})\s+(.*)", s)
+        if m: lines += ["", "■ " + m.group(2), ""]; continue             # 見出し → ■
+        s = re.sub(r"^[-*]\s+", "・", s)                                 # 箇条書き
+        s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)                          # 太字の記号を外す
+        s = re.sub(r"\[(.+?)\]\((.+?)\)", r"\1（\2）", s)                 # リンク
+        lines.append(s)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip() + "\n"
+
+def notify(title, text, img_path):
+    """GitHubのIssueを作って知らせる（GitHubからメール通知が届く）。失敗しても止めない"""
+    repo, tok = os.environ.get("GITHUB_REPOSITORY"), os.environ.get("GITHUB_TOKEN")
+    if not (repo and tok): return
+    S = load("config/settings.yaml"); base = S["public_base_url"].rstrip("/")
+    body = (f"今週の運用ログの下書きができました。\n\n"
+            f"**公開の手順（5分）**\n1. 下の本文を読んで、気になるところを直す\n"
+            f"2. noteの「投稿」→「テキスト」に、タイトルと本文を貼る（「■」の行は見出しにする）\n"
+            f"3. 見出し画像をダウンロードして設定する：{base}/{img_path}\n4. 公開したら、このIssueを閉じる\n\n"
+            f"![見出し画像]({base}/{img_path})\n\n---\n**タイトル**\n```\n{title}\n```\n**本文**\n```\n{text}\n```")
+    try:
+        requests.post(f"https://api.github.com/repos/{repo}/issues", timeout=30,
+                      headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json"},
+                      json={"title": f"【note下書き】{title}", "body": body, "labels": ["note"]}).raise_for_status()
+        print("Issueで通知しました")
+    except Exception as e:
+        print("通知をスキップ:", e)
 
 if __name__ == "__main__":
     main()
