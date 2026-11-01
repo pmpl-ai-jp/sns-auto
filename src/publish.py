@@ -45,12 +45,17 @@ def trip_if_failing():
         (ROOT / "config/KILL_SWITCH").write_text("ON\n"); print("連続エラーのため停止")
 
 def main():
+    """その日の公開時刻を過ぎていて、まだ公開していない枠があれば1件公開する。
+    GitHubの自動実行が遅れたり飛ばされたりしても、次に動いたときに追いつく"""
     if killed(): print("KILL_SWITCH ON: skip"); return
-    hour = now().hour
+    t = now(); today = t.date().isoformat()
     for kind, slots in SLOTS.items():
-        if hour not in slots: continue
+        due = [h for h in slots if h <= t.hour]                 # もう時刻を過ぎた枠の数
+        posts = [p for _, p in iter_posts() if p["kind"] == kind]
+        done = sum(1 for p in posts if p.get("status") == "published" and str(p.get("published_at", "")).startswith(today))
+        if done >= len(due): continue
         for path, post in iter_posts():
-            if post["kind"] == kind and post["status"] == "approved":
+            if post["kind"] == kind and post["status"] == "approved" and post["created"][:10] <= today:
                 try:
                     pid = post_threads(post["text"]) if kind == "threads" else post_instagram(post["images"], post["caption"])
                     post.update(status="published", published_id=pid, published_at=now().isoformat())
