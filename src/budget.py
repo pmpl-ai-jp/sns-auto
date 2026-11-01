@@ -18,9 +18,10 @@ def check_budget():
     if spent() >= S["monthly_budget_jpy"]:
         raise BudgetExceeded(f"今月の上限 {S['monthly_budget_jpy']}円 に達したため停止")
 
-def record(model, tin, tout):
+def record(model, tin, tout, searches=0):
     S = load("config/settings.yaml"); pr = S["prices"][model]
-    jpy = (tin * pr["in"] + tout * pr["out"]) / 1e6 * S["usd_jpy"]
+    usd = (tin * pr["in"] + tout * pr["out"]) / 1e6 + searches * S.get("web_search_usd", 0.01)
+    jpy = usd * S["usd_jpy"]
     p = _path(); d = json.loads(p.read_text()) if p.exists() else {"jpy": 0.0, "calls": 0}
     d["jpy"] = round(d["jpy"] + jpy, 4); d["calls"] += 1
     p.write_text(json.dumps(d))
