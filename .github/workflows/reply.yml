@@ -1,0 +1,31 @@
+name: reply
+on:
+  schedule: [{cron: '30 0,4,8,12 * * *'}]   # 9:30 / 13:30 / 17:30 / 21:30 JST
+  workflow_dispatch:
+permissions: { contents: write }
+concurrency: repo-write
+jobs:
+  reply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r requirements.txt
+      - name: write profile from secret
+        run: printf '%s' "$PROFILE_YAML" > config/profile.yaml
+        env:
+          PROFILE_YAML: ${{ secrets.PROFILE_YAML }}
+      - run: python -m src.reply
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      - name: commit
+        if: always()
+        run: |
+          git config user.name bot && git config user.email bot@users.noreply.github.com
+          git add -A && (git diff --cached --quiet || git commit -m "auto: $(date +%F-%H)") && git pull --rebase && git push
