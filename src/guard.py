@@ -31,15 +31,28 @@ def _overlap(text, episode, n=4):
     return any(e[i:i+n] in text for i in range(max(0, len(e) - n + 1)))
 
 def logic_check(text):
-    """チェック係: 結論と理由のつながり・誇張・作り話をAIで確認する"""
+    """チェック係: 公開を止めるべき重大な問題だけを返す。細かい改善点は止めない（書き直しの参考にだけ使う）"""
     from .llm import generate_json
-    r = generate_json(f"""次のSNS投稿をレビューしてください。問題があれば具体的に指摘。
-観点: (1)結論が先にあり、理由とつながっているか (2)誇張・断定・収益の約束がないか
-(3)事実と意見が混ざっていないか (4)誰かを傷つけたり、他社を批判したりしていないか
+    P = load("config/profile.yaml")
+    r = generate_json(f"""次のSNS投稿をレビューしてください。
+筆者の経歴（ここにある経験は事実として確認済み。根拠不足として扱わない）:
+{P.get("episodes")}
+
+【公開を止める問題（blocking）】次に当てはまるものだけ:
+(a) 誇張・断定的な効果の約束・収益の約束（「必ず」「誰でも」等）
+(b) 事実として誤っている内容、または上の経歴にない体験を筆者の経験として書いている
+(c) 結論がない、または結論と本文が矛盾している
+(d) 特定の企業・個人・職種を見下す、批判する
+(e) 法令や規約に反するおそれ（ステマ、個人情報の扱いを勧める等）
+【改善点（suggestions）】上に当てはまらない細かい点（言い回し、意見表明の明示、補足不足など）。公開は止めない。
+
+一般的に知られた考え方（例:「バッチ処理は抽出・変換・格納で組む」）に出典は要らない。
+筆者の考えであることが文脈から分かれば、毎文に「私の見方では」を付ける必要はない。
+
 投稿:
 {text}
-JSON: {{"ok": true/false, "issues": ["..."]}}""", 0.1, role="checker")
-    return [] if r.get("ok") else [f"論理チェック: {i}" for i in r.get("issues", [])]
+JSON: {{"blocking": ["..."], "suggestions": ["..."]}}""", 0.1, role="checker")
+    return [f"論理チェック: {i}" for i in r.get("blocking", [])], r.get("suggestions", [])
 
 def design_check(image_paths):
     """デザインのレビュー係: 画像を見て、読みやすさ・はみ出し・詰め込みすぎを確認する"""

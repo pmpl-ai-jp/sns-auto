@@ -85,6 +85,7 @@ n枚目: 保存とフォローを促す（次に何を発信するか一言）
 禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
       bodyに「悩み：」「例：」「質問：」のようなラベルを付けない（「たとえば〜」「〜と聞いてみる」など自然な文にする）
 checklist の body は、項目ごとに改行（\n）で区切る
+AIやツールに業務データを入れる手順を勧めるときは、「社内ルールを確認し、機密情報・個人情報は入れない」と一言添える
 キャプション: 500〜800字。1行目で結論、続けて各ポイントの補足（スライドの丸写しにしない）、最後に問いかけ。ハッシュタグは5個まで
 各スライドに type を付ける: cover（表紙）/ why（なぜ大事か）/ point（ポイント）/ checklist（まとめ。body は「・」区切り）/ cta（最後）
 JSON: {"slides": [{"type": "cover", "title": "...", "body": "..."}], "caption": "..."}""")
@@ -115,8 +116,13 @@ def make(kind, idx, idea):
         out = generate_json(prompt, role="writer")
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
-        if not issues: issues = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
-        if not issues: break
+        suggestions = []
+        if not issues: issues, suggestions = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
+        if not issues:
+            if suggestions and attempt == 0:   # 重大な問題はないが改善点がある → 1回だけ磨く（失敗扱いにはしない）
+                prompt += f"\n内容は良いので、次の改善点だけ反映して全体を書き直してください: {suggestions}"
+                continue
+            break
         prompt += f"\n前回の出力に問題がありました。修正してください: {issues}"
     post = {"id": f"{now():%Y%m%d}-{kind}-{idx}", "kind": kind, "stage": stage, "idea": idea["idea"],
             "created": now().isoformat(), "issues": issues, "affiliate": aff["id"] if aff else None}
