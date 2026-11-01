@@ -47,5 +47,6 @@ ig_graph_base: "https://graph.facebook.com/v21.0"
 # トレンド調査（Claudeのウェブ検索。1,000回で$10）
 trend:
   enabled: true
-  max_searches: 4        # 1日あたりの検索回数の上限
+  max_searches: 4        # 1回の調査あたりの検索回数の上限
+  every_days: 7          # 何日ごとに調べ直すか（間の日は保存した結果を使う）
 web_search_usd: 0.01     # 検索1回あたりの料金（予算上限の計算に使う）
