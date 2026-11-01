@@ -1,6 +1,6 @@
 name: publish
 on:
-  schedule: [{cron: '5 * * * *'}]    # 毎時5分
+  schedule: [{cron: '17 * * * *'}]    # 毎時17分（混み合う毎時ちょうどを避ける）
   workflow_dispatch:
 permissions: { contents: write }
 concurrency: repo-write
