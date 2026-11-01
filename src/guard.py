@@ -41,6 +41,21 @@ def logic_check(text):
 JSON: {{"ok": true/false, "issues": ["..."]}}""", 0.1, role="checker")
     return [] if r.get("ok") else [f"論理チェック: {i}" for i in r.get("issues", [])]
 
+def design_check(image_paths):
+    """デザインのレビュー係: 画像を見て、読みやすさ・はみ出し・詰め込みすぎを確認する"""
+    from .llm import generate_json
+    from .common import ROOT
+    r = generate_json("""Instagramのカルーセル画像をレビューしてください。スマホで見る前提で、厳しめに判定します。
+観点:
+(1) 文字が切れている・重なっている・枠からはみ出している
+(2) 文字が小さすぎる、1枚の情報量が多すぎて読む気がしない
+(3) 不自然な改行（1〜2文字だけの行、句読点が行頭）
+(4) 1枚目の表紙が、スクロール中に目に止まる強さがあるか
+(5) 全体のデザインがそろっているか
+問題がなければ ok=true。直すべき点は、何枚目の何をどう直すか（文字を減らす、言い換える等）を具体的に書く。
+JSON: {"ok": true/false, "issues": ["..."]}""", 0.1, role="checker", images=[str(ROOT / p) for p in image_paths])
+    return [] if r.get("ok") else [f"デザイン: {i}" for i in r.get("issues", [])]
+
 def apply_pr(text, has_affiliate):
     if not has_affiliate:
         return text
