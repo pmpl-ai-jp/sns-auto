@@ -1,0 +1,40 @@
+{
+  "date": "2026-11-02",
+  "topics": [
+    {
+      "topic": "ChatGPTのWork/Codex利用枠が2倍に、ClaudeはCarPlay対応。AI各社の更新を業務でどう取捨選択するか",
+      "why": "10月29日にOpenAIとAnthropicが更新を相次いで発表し、直近で最も新しい業務AIニュースの一つ。",
+      "source": "https://news.livedoor.com/topics/detail/32695720/"
+    },
+    {
+      "topic": "チャットで質問する段階から、AIに作業を任せる段階へ。ChatGPT Work・Claude Cowork・Copilot Coworkの違い",
+      "why": "各社が「任せる型」の機能を並べて出し、利用上限や対応プランの比較記事が増えている。",
+      "source": "https://ai-revolution.co.jp/media/what-is-chatgpt-work/"
+    },
+    {
+      "topic": "Microsoft 365 Copilotでの使い分け。GPT系とClaude系を作業に合わせて選ぶ",
+      "why": "10月中旬にCopilotや各AIの比較検証が出て、既存の業務環境に合わせた選び方が関心を集めている。",
+      "source": "https://miralab.co.jp/media/chatgpt_gemini_claude_copilot/"
+    },
+    {
+      "topic": "AI時代のIT転職。秋の採用期に、何を武器にどこへ動くか",
+      "why": "11月7日に「AI時代のキャリア選択」を掲げる転職フェアが開かれ、10〜11月は転職の動きが増える時期でもある。",
+      "source": "https://prtimes.jp/main/html/rd/p/000000998.000010591.html"
+    },
+    {
+      "topic": "エンジニア採用は「数」から「質」へ。企業が見極める人材像と、転職者が示すべき経験",
+      "why": "秋から年末の採用シーズンを前に、求人数が落ち着き、採用側が必要な人材を絞り込む傾向を解説する記事が出ている。",
+      "source": "https://topics.type.jp/type-engineer/engineer-job-market-trend/"
+    },
+    {
+      "topic": "SIerと事業会社を行き来するキャリア。内製化時代に両方を知る人の価値",
+      "why": "AIで内製化が進むなか、発注側と受注側の経験を往復する人材が注目されている。ただし、この記事は直近1〜2週間のものではなく、継続中のテーマとして扱う。",
+      "source": "https://qiita.com/papi_tokei/items/0813eee16368ebe76c2b"
+    },
+    {
+      "topic": "AIとの共同作業をプロジェクトとして管理する。目的・入力・完成条件・承認者を決めるPM的な型",
+      "why": "AI活用を「個人の工夫」から「管理できる仕事」に変える手法の記事が、直近で公開されている。",
+      "source": "https://qiita.com/satouyoshiaki/items/472f2be81b0cbf4f4508"
+    }
+  ]
+}
