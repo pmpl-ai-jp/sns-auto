@@ -82,7 +82,9 @@ Instagramの保存されるカルーセルを作る。読み終えたら行動�
 (n-1)枚目: まとめのチェックリスト（3〜5項目を「・」で並べる）
 n枚目: 保存とフォローを促す（次に何を発信するか一言）
 文字数: title 16字以内, body 60〜110字。体言止めと短い文を混ぜ、硬い「です・ます」の連続を避ける
-禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
+禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のtitleには「誰が・何を」が分かる言葉を入れる（例:「SIerから移る前に4つ確認する」）。
+      最後のスライドのtitleに「NEXT」などの英字ラベルを付けない。最後のスライドのbodyに「保存して」を書かない（保存ボタンはデザイン側で付く）。
+      同じものを指す言葉は全スライドで統一する。社内用語（例:「脱ホスト」）は一般の人にも分かる言葉に言い換える。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
       bodyに「悩み：」「例：」「質問：」のようなラベルを付けない（「たとえば〜」「〜と聞いてみる」など自然な文にする）
 checklist の body は、項目ごとに改行（\n）で区切る
 AIやツールに業務データを入れる手順を勧めるときは、「社内ルールを確認し、機密情報・個人情報は入れない」と一言添える
@@ -91,19 +93,24 @@ AIやツールに業務データを入れる手順を勧めるときは、「社
 JSON: {"slides": [{"type": "cover", "title": "...", "body": "..."}], "caption": "..."}""")
 
 def design_loop(post_id, out, prompt, pr):
-    """画像を作り、機械チェック→デザインのレビュー。問題があれば文字を直して作り直す（最大2回）"""
+    """画像を作り、機械チェック→デザインのレビュー。
+    見た目が壊れている問題(blocking)は直して作り直し（最大2回）。細かい改善点は1回だけ反映して、止めずに進める"""
+    polished = False
     for attempt in range(3):
         paths, warns = render_carousel(post_id, out["slides"], pr=pr)
-        issues = warns or design_check(paths)
-        if not issues: return paths, []
+        if warns: issues, sugg = warns, []
+        else: issues, sugg = design_check(paths)
+        if not issues and (not sugg or polished): return paths, []
         if attempt == 2: break
+        todo = issues if issues else sugg
+        if not issues: polished = True
         fix = generate_json(prompt + f"""
-前回のカルーセルを画像にしたところ、デザイン上の問題がありました。内容は保ったまま、文字量や言い回しを直したslidesだけを返してください。
+前回のカルーセルを画像にしたところ、直したい点がありました。内容は保ったまま、文字量や言い回しを直したslidesだけを返してください。
 前回のslides: {json.dumps(out["slides"], ensure_ascii=False)}
-問題点: {issues}
+直す点: {todo}
 JSON: {{"slides": [...]}}""", role="writer")
         out["slides"] = fix.get("slides", out["slides"])
-        print("デザインを直して作り直し:", issues)
+        print("デザインを直して作り直し:", todo)
     return paths, issues
 
 def make(kind, idx, idea):
