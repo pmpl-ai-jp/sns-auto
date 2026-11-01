@@ -1,6 +1,6 @@
 # 投稿スケジュール（JST）
 timezone: Asia/Tokyo
-threads_per_day: 6
+threads_per_day: 0   # Threadsアカウントができたら 6 に戻す
 instagram_per_day: 1
 # 公開リポジトリのraw URL（Instagram画像の公開URLに使う）
 # 例: https://raw.githubusercontent.com/<user>/<repo>/main
@@ -36,6 +36,6 @@ reply_per_day: 30
 # 立ち上げ期間（最初の公開から自動で数える）。期間中は安全側の設定で動き、終わると自動で通常設定に戻る
 warmup:
   days: 14
-  threads_per_day: 4     # 通常は threads_per_day
+  threads_per_day: 0     # Threadsアカウントができたら 4 に戻す
   reply_per_day: 10      # 通常は reply_per_day
   pr: false              # 期間中はPR投稿を一切出さない
