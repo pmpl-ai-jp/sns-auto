@@ -1,0 +1,17 @@
+# ASPで提携した案件。stage は topics.yaml のキー。提携終了したら active: false にする
+# 承認条件・単価・SNS掲載可否は、提携時に各ASPの管理画面で必ず確認する
+affiliates:
+  - id: exp_agent_1
+    name: "（例）経験者向けIT転職エージェント 会員登録"
+    note: "エンジニア経験・対象地域が承認条件の案件が多い。読者が経験者であることが前提"
+    url: "https://px.a8.net/xxxx"
+    stage: career_exp_pr
+    active: false
+    auto_ok: false   # ASPの掲載条件を確認し、PR投稿の自動公開を許可するなら true
+  - id: school_1
+    name: "（例）ITスクール 無料カウンセリング"
+    note: "カウンセリング実施が成果。予約のみ不可の案件あり"
+    url: "https://af.moshimo.com/xxxx"
+    stage: learn_it_pr
+    active: false
+    auto_ok: false   # ASPの掲載条件を確認し、PR投稿の自動公開を許可するなら true

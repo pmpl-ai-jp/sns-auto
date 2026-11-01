@@ -1,0 +1,41 @@
+# 投稿スケジュール（JST）
+timezone: Asia/Tokyo
+threads_per_day: 6
+instagram_per_day: 1
+# 公開リポジトリのraw URL（Instagram画像の公開URLに使う）
+# 例: https://raw.githubusercontent.com/<user>/<repo>/main
+public_base_url: "https://raw.githubusercontent.com/pmpl-ai-jp/sns-auto/main"
+persona: >
+  IT業界25年、SIer20年と事業会社SE5年の両方を経験し、現在は外資系IT企業に勤めるプロジェクトリーダー。
+  現場で見てきたことをもとに、AIで仕事を自動化する方法と、IT職のキャリアの実際を
+  非エンジニアにも分かる言葉で伝える。説明は結論から始め、根拠を整理して示す
+  （ロジカルシンキング・ロジカルプレゼンテーション）書き方を徹底する。自分の経験は config/profile.yaml にあることだけを話す。
+
+# 全自動モード: チェックを通った投稿はすべて自動公開。通らない投稿は破棄（人の確認待ちにしない）
+auto_mode: true
+models:
+  writer: claude-sonnet-5-5      # 執筆（品質の要。ここだけ上位モデル）
+  light: claude-haiku-5-5        # リサーチ・企画・返信
+  checker: claude-haiku-5-5      # 論理チェック（書いたモデルとは別のモデルにする）
+# モデル名 → 提供元。Geminiに戻すときは models の値を gemini-... に変えるだけ
+providers:
+  claude-: anthropic
+  gemini-: google
+# 料金（USD / 100万トークン）。変わったら更新する
+prices:   # 2026-10-31時点。変わったら更新する（上限計算に使う）
+  claude-sonnet-5-5: { in: 2.00, out: 10.00 }
+  claude-haiku-5-5: { in: 0.10, out: 0.50 }
+  gemini-2.5-flash-lite: { in: 0.10, out: 0.40 }
+  gemini-2.5-flash: { in: 0.30, out: 2.50 }
+usd_jpy: 150
+# 月の上限（円）。超えたらその月のAI呼び出しを止める。3,000円を絶対に超えないための安全装置
+monthly_budget_jpy: 2500
+# 自動返信の上限
+reply_per_day: 30
+
+# 立ち上げ期間（最初の公開から自動で数える）。期間中は安全側の設定で動き、終わると自動で通常設定に戻る
+warmup:
+  days: 14
+  threads_per_day: 4     # 通常は threads_per_day
+  reply_per_day: 10      # 通常は reply_per_day
+  pr: false              # 期間中はPR投稿を一切出さない
