@@ -286,3 +286,26 @@ def render_carousel(post_id, slides, pr=False):
         p = out / f"{i+1}.jpg"; im.save(p, quality=92)
         paths.append(str(p.relative_to(ROOT)).replace("\\", "/"))
     return paths, warns
+
+
+def render_note_header(title, out_path, label="運用ログ"):
+    """noteの見出し画像（1280×670）を、Instagramと同じデザインで作る"""
+    global W, H
+    w0, h0 = W, H
+    W, H = 1280, 670
+    try:
+        im = background(0); d = ImageDraw.Draw(im); max_w = W - M * 2
+        d.rectangle([M, 70, M + 56, 76], fill=CYAN)
+        d.text((M + 72, 54), "PM/PL × AI", font=latin(28, 600), fill=SOFT)
+        tw = mlen(d, label, bold(30)) + 44
+        d.rounded_rectangle([M, 140, M + tw, 192], radius=26, outline=CYAN, width=2)
+        mtext(d, (M + 22, 148), label, bold(30), CYAN)
+        tf, tl, ts, _ = fit(d, title, bold, max_w, 3, 76, 48)
+        y = 230
+        for line in tl:
+            mtext(d, (M, y), line, tf, WHITE); y += int(ts * 1.3)
+        d.text((M, H - 80), "@pmpl_ai", font=latin(28, 600), fill=SOFT)
+        im.convert("RGB").save(out_path, quality=92)
+    finally:
+        W, H = w0, h0
+    return out_path
