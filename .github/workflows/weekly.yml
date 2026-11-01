@@ -1,0 +1,31 @@
+name: weekly
+on:
+  schedule: [{cron: '0 0 * * 1'}]    # 毎週月曜 9:00 JST
+  workflow_dispatch:
+permissions: { contents: write }
+concurrency: repo-write
+jobs:
+  weekly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install -r requirements.txt
+      - name: write profile from secret
+        run: printf '%s' "$PROFILE_YAML" > config/profile.yaml
+        env:
+          PROFILE_YAML: ${{ secrets.PROFILE_YAML }}
+      - run: python -m src.refresh_token
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+      - run: python -m src.weekly_log
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: commit
+        run: |
+          git config user.name bot && git config user.email bot@users.noreply.github.com
+          git add -A && (git diff --cached --quiet || git commit -m "auto: $(date +%F-%H)") && git push
