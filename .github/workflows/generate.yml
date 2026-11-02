@@ -2,6 +2,11 @@ name: generate
 on:
   schedule: [{cron: '0 21 * * *'}]   # 毎日 6:00 JST
   workflow_dispatch:
+    inputs:
+      idea_override:
+        description: 'ネタを指定する場合に入力（空欄なら自動）'
+        required: false
+        default: ''
 permissions: { contents: write }
 concurrency: repo-write
 jobs:
@@ -27,6 +32,7 @@ jobs:
           IG_TOKEN: ${{ secrets.IG_TOKEN }}
       - run: python -m src.generate
         env:
+          IDEA_OVERRIDE: ${{ inputs.idea_override }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
