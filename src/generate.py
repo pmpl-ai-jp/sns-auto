@@ -38,7 +38,7 @@ def teaser():
     次の投稿はその予告に答えるものにして、投稿どうしがつながるようにする"""
     from .common import iter_posts
     xs = [p for _, p in iter_posts() if p.get("kind") == "instagram" and p.get("slides")
-          and p.get("status") in ("published", "approved")]
+          and p.get("status") == "published"]      # 読者が実際に見た（公開済みの）投稿の予告だけを引き継ぐ
     if not xs: return ""
     last = sorted(xs, key=lambda p: p.get("published_at") or p["created"])[-1]
     cta = next((s for s in reversed(last["slides"]) if s.get("type") == "cta"), None)
@@ -211,7 +211,7 @@ def main():
         ideas = [i for i in ideas if i.get("stage") in T and w.get(i["stage"], 0) > 0]
         first = [True]
         def pick():
-            if first[0] and teaser() and ideas:        # 予告がある日は、最初の1本を予告に答えるネタにする
+            if first[0] and (ov or teaser()) and ideas:   # ネタの指定か予告がある日は、最初の1本をそのネタにする
                 first[0] = False
                 return ideas[0]
             first[0] = False
