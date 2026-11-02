@@ -1,5 +1,5 @@
 """毎朝実行: リサーチ係 → 企画係 → 執筆係 → チェック係 の順に動き、当日分を queue/ に保存"""
-import random, json, datetime
+import random, json, datetime, os
 from .common import load, now, save_post, killed, ROOT, in_warmup, setting
 from .llm import generate_json
 from .guard import check, apply_pr, logic_check, design_check, G
@@ -32,6 +32,18 @@ def history(n=40):
     from .common import iter_posts
     xs = [p for _, p in iter_posts() if p.get("idea")]
     return [p["idea"] for p in xs[-n:]]
+
+def teaser():
+    """直近に公開した（または公開待ちの）投稿の最後のスライドにある「次回予告」を取り出す。
+    次の投稿はその予告に答えるものにして、投稿どうしがつながるようにする"""
+    from .common import iter_posts
+    xs = [p for _, p in iter_posts() if p.get("kind") == "instagram" and p.get("slides")
+          and p.get("status") in ("published", "approved")]
+    if not xs: return ""
+    last = sorted(xs, key=lambda p: p.get("published_at") or p["created"])[-1]
+    cta = next((s for s in reversed(last["slides"]) if s.get("type") == "cta"), None)
+    if not cta: return ""
+    return f"直近の投稿「{last['slides'][0]['title']}」の最後で、読者に次のように予告した: {cta['title']}。{cta['body']}"
 
 def trend():
     """トレンド調査係: ウェブ検索で、今話題になっていることを集める（失敗しても投稿づくりは止めない）"""
@@ -71,6 +83,8 @@ def research():
 {json.dumps(tr, ensure_ascii=False)}
 最近伸びた投稿（同じ型で切り口を変える参考に）: {p["top_posts"][:3]}
 これまでに出したネタ（同じ切り口は出さない）: {history()}
+直近の予告（最優先）: {teaser() or "なし"}
+  → 予告がある場合、8個のうち最初の1個は、その予告に答えるネタにする（stage はそのテーマに合うものを選ぶ）。予告したことを、次の投稿で必ず果たす
 各ネタは「誰の・どんな悩みに・何を持ち帰ってもらうか」が分かる1行にする。
 フォローしたくなる理由を作るため、8個のうち2個は、続きものにできる（シリーズ化できる）ネタにする。
 テーマ一覧: {json.dumps({k: v["name"] for k, v in T.items()}, ensure_ascii=False)}
@@ -122,6 +136,7 @@ n枚目: 保存とフォローを促す（次に何を発信するか一言）
 文字数: title 16字以内, body 60〜110字。体言止めと短い文を混ぜ、硬い「です・ます」の連続を避ける
 禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のtitleには「誰が・何を」が分かる言葉を入れる（例:「SIerから移る前に4つ確認する」）。
       最後のスライドのtitleに「NEXT」などの英字ラベルを付けない。最後のスライドのbodyに「保存して」を書かない（保存ボタンはデザイン側で付く）。
+      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（AI仕事術、キャリア、伝え方）に沿った内容にする。
       同じものを指す言葉は全スライドで統一する。社内用語（例:「脱ホスト」）は一般の人にも分かる言葉に言い換える。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
       bodyに「悩み：」「例：」「質問：」のようなラベルを付けない（「たとえば〜」「〜と聞いてみる」など自然な文にする）
 checklist の body は、項目ごとに改行（\n）で区切る
@@ -191,8 +206,15 @@ def main():
     print("立ち上げ期間中" if in_warmup() else "通常運用")
     try:
         w = weights(); ideas = research()
+        ov = (os.environ.get("IDEA_OVERRIDE") or "").strip()      # 手動実行でネタを指定したとき
+        if ov: ideas = [{"stage": "career_exp", "idea": ov}] + ideas
         ideas = [i for i in ideas if i.get("stage") in T and w.get(i["stage"], 0) > 0]
+        first = [True]
         def pick():
+            if first[0] and teaser() and ideas:        # 予告がある日は、最初の1本を予告に答えるネタにする
+                first[0] = False
+                return ideas[0]
+            first[0] = False
             ks = list(w); st = random.choices(ks, weights=[w[k] for k in ks])[0]
             m = [i for i in ideas if i["stage"] == st]
             return random.choice(m) if m else {"stage": st, "idea": random.choice(T[st]["examples"])}
