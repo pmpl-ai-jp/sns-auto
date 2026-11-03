@@ -1,0 +1,10 @@
+# 連載の計画。upcoming に {theme: "...", stage: "テーマのキー"} を足すと、次の連載として使われる
+# stage: ai_work（AI×仕事術）/ career_exp（キャリア）/ logic（伝え方）
+current: null
+upcoming:
+- theme: PMとPLの仕事の違い（受注側でPMとPLを兼ねる立場から）
+  stage: career_exp
+history:
+- theme: SIerから事業会社へ移る前の確認と、発注側の動き方
+  stage: career_exp
+  started: '2026-11-01'
