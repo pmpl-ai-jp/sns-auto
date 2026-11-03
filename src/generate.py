@@ -1,5 +1,5 @@
 """毎朝実行: リサーチ係 → 企画係 → 執筆係 → チェック係 の順に動き、当日分を queue/ に保存"""
-import random, json, datetime, os
+import random, json, datetime, os, yaml
 from .common import load, now, save_post, killed, ROOT, in_warmup, setting
 from .llm import generate_json
 from .guard import check, apply_pr, logic_check, design_check, G
@@ -90,6 +90,79 @@ def research():
 テーマ一覧: {json.dumps({k: v["name"] for k, v in T.items()}, ensure_ascii=False)}
 JSON: {{"ideas": [{{"stage": "テーマのキー", "idea": "1行"}}]}}""", 0.9, role="planner")["ideas"]
 
+
+# ---------------- 連載（シリーズ） ----------------
+SERIES_PATH = "data/series.yaml"
+
+def load_series():
+    p = ROOT / SERIES_PATH
+    if not p.exists(): return {"current": None, "upcoming": [], "history": []}
+    d = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    d.setdefault("current", None); d.setdefault("upcoming", []); d.setdefault("history", [])
+    return d
+
+def save_series(d):
+    (ROOT / SERIES_PATH).write_text(
+        "# 連載の計画。upcoming に {theme: \"...\", stage: \"テーマのキー\"} を足すと、次の連載として使われる\n"
+        + yaml.safe_dump(d, allow_unicode=True, sort_keys=False), encoding="utf-8")
+
+def next_stage(d):
+    """テーマの割合に沿って、次の連載のテーマ（stage）を選ぶ。直前と同じテーマは避ける"""
+    w = {k: v["ratio"] for k, v in T.items() if not v.get("affiliate") and k != "log" and v["ratio"] > 0}
+    last = d["history"][-1]["stage"] if d["history"] else None
+    if last in w and len(w) > 1: w.pop(last)
+    ks = list(w); return random.choices(ks, weights=[w[k] for k in ks])[0]
+
+def plan_series(d):
+    """連載の計画係: テーマと各回の構成（3〜7回）を決める"""
+    req = d["upcoming"].pop(0) if d["upcoming"] else {}
+    tz = teaser()                                   # 直前に公開した投稿の予告（読者への約束）
+    stage = req.get("stage") or next_stage(d)
+    past = [s["theme"] for s in d["history"]][-10:]
+    r = generate_json(f"""次の人物が、Instagramで平日に連載をします。次の連載の計画を立ててください。
+人物像: {S["persona"]}
+経歴（ここにある経験だけを使う）: {json.dumps(PR.get("profile", {}), ensure_ascii=False)}
+語ってよい体験: {PR.get("episodes")}
+テーマの分類: {T[stage]["name"]}
+{"指定されたテーマ: " + req["theme"] if req.get("theme") else "テーマはこの分類の中から、読者が保存したくなるものを1つ選ぶ"}
+過去の連載（同じテーマは避ける）: {past}
+直前に公開した投稿の予告: {tz or "なし"}
+  → 予告がある場合、指定されたテーマがあってもなくても、第1回はその予告に答える内容にする（読者への約束を守る）。予告の内容が連載のテーマになじまなければ、予告をテーマにした連載にする
+今話題になっていること（使えるなら）: {json.dumps(trend(), ensure_ascii=False)}
+ルール:
+- 回数は内容に合わせて3〜7回。1回で1つのことだけを扱い、回を追うごとに理解が深まる順番にする
+- 第1回は全体像、最終回はまとめ（チェックリストなど）にする
+- 各回のtitleは、その回の内容が分かる具体的な見出し（16字以内が目安）
+JSON: {{"theme": "連載の名前", "goal": "読者が最後に持ち帰るもの", "episodes": [{{"title": "...", "point": "その回で書くことを1〜2文"}}]}}""",
+        0.7, role="planner", max_tokens=4000)
+    eps = r.get("episodes", [])[:7]
+    return {"theme": r.get("theme", ""), "stage": stage, "goal": r.get("goal", ""),
+            "episodes": eps, "done": 0, "started": now().date().isoformat()}
+
+def current_series():
+    """今の連載を返す。なければ新しく計画する"""
+    d = load_series()
+    if not d["current"] or d["current"]["done"] >= len(d["current"]["episodes"]):
+        if d["current"]: d["history"].append({k: d["current"][k] for k in ("theme", "stage", "started")})
+        d["current"] = plan_series(d); save_series(d)
+        print("新しい連載:", d["current"]["theme"], len(d["current"]["episodes"]), "回")
+    return d
+
+def series_idea(d):
+    """今日書く回のネタと、最後のスライドで予告する内容"""
+    c = d["current"]; n = c["done"]; ep = c["episodes"][n]; total = len(c["episodes"])
+    idea = (f"連載「{c['theme']}」第{n+1}回（全{total}回）:{ep['title']}。この回で書くこと: {ep['point']}。"
+            f"連載のゴール: {c['goal']}。前の回までの内容: {[e['title'] for e in c['episodes'][:n]]}")
+    if n + 1 < total:
+        nxt = f"次回:{c['episodes'][n+1]['title']}（連載「{c['theme']}」第{n+2}回）"
+    else:
+        nxt = "連載の最終回。最後のスライドでは、連載全体のまとめとして保存をすすめ、次の連載が始まることを一言だけ予告する"
+    return {"stage": c["stage"], "idea": idea, "next": nxt}
+
+def mark_done():
+    d = load_series()
+    if d["current"]: d["current"]["done"] += 1; save_series(d)
+
 BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 テーマ: {stage}
 ネタ: {idea}
@@ -121,11 +194,12 @@ def examples():
     return ("\n- 反応の良かった過去の投稿（構成と語り口の参考。内容や数字はコピーしない）:\n" +
             "\n---\n".join(top)) if top else ""
 
-def write(kind, stage, idea):
+def write(kind, stage, idea, nxt=None):
     """執筆係"""
+    extra = f"\n最後のスライド(cta)の予告はこれにする（変えない）: {nxt}" if nxt else ""
     if kind == "threads":
-        return base(stage, idea) + examples() + "\nThreads用の投稿を1つ。400字以内、最後は読者への質問で終える。JSON: {\"text\": \"...\"}"
-    return base(stage, idea) + examples() + ("""
+        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。400字以内、最後は読者への質問で終える。JSON: {\"text\": \"...\"}"
+    return base(stage, idea) + examples() + extra + ("""
 Instagramの保存されるカルーセルを作る。読み終えたら行動できるだけの中身を入れる。
 構成（8〜10枚）:
 1枚目: 表紙。結論を行動で言い切る（title 16字以内, body 40字以内で「誰向けか」）
@@ -136,7 +210,7 @@ n枚目: 保存とフォローを促す（次に何を発信するか一言）
 文字数: title 16字以内, body 60〜110字。体言止めと短い文を混ぜ、硬い「です・ます」の連続を避ける
 禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のtitleには「誰が・何を」が分かる言葉を入れる（例:「SIerから移る前に4つ確認する」）。
       最後のスライドのtitleに「NEXT」などの英字ラベルを付けない。最後のスライドのbodyに「保存して」を書かない（保存ボタンはデザイン側で付く）。
-      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（AI仕事術、キャリア、伝え方）に沿った内容にする。
+      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（AI仕事術、キャリア、伝え方）に沿った内容にする。最後のスライドのbodyは、titleで予告した中身を具体的に説明する（titleと違う話を書かない）。
       同じものを指す言葉は全スライドで統一する。社内用語（例:「脱ホスト」）は一般の人にも分かる言葉に言い換える。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
       bodyに「悩み：」「例：」「質問：」のようなラベルを付けない（「たとえば〜」「〜と聞いてみる」など自然な文にする）
 checklist の body は、項目ごとに改行（\n）で区切る
@@ -170,7 +244,7 @@ def make(kind, idx, idea):
     stage = idea["stage"]
     cands = [] if in_warmup() else [a for a in AFF if a["stage"] == stage]
     aff = random.choice(cands) if cands else None
-    prompt = write(kind, stage, idea["idea"])
+    prompt = write(kind, stage, idea["idea"], idea.get("next"))
     issues = ["未生成"]
     for attempt in range(G["max_rewrite"] + 1):
         out = generate_json(prompt, role="writer")
@@ -199,7 +273,9 @@ def make(kind, idx, idea):
         post["status"] = "rejected"; post["issues"] = ["案件の自動公開が未許可（affiliates.yaml の auto_ok）"]
     else:
         post["status"] = "approved"
+    if idea.get("series"): post["series"] = idea["series"]
     save_post(post); print(post["id"], post["status"], post["issues"])
+    if idea.get("series") and post["status"] == "approved": mark_done()   # 連載は、公開できる回ができたときだけ次へ進める
 
 def main():
     if killed(): print("KILL_SWITCH ON: skip"); return
@@ -219,7 +295,18 @@ def main():
             m = [i for i in ideas if i["stage"] == st]
             return random.choice(m) if m else {"stage": st, "idea": random.choice(T[st]["examples"])}
         for i in range(setting("threads_per_day")): make("threads", i, pick())
-        for i in range(S["instagram_per_day"]): make("instagram", i, pick())
+        weekday = now().weekday() < 5
+        for i in range(S["instagram_per_day"]):
+            if ov or not weekday:                 # ネタの指定がある日・週末は単発
+                it = pick()
+                if not weekday:                   # 週末の単発は、月曜から再開する連載の回を予告する
+                    d = current_series(); sx = series_idea(d)
+                    it = dict(it, next=f"月曜から連載「{d['current']['theme']}」の続き:{d['current']['episodes'][d['current']['done']]['title']}")
+                make("instagram", i, it)
+            else:                                 # 平日は連載の次の回
+                d = current_series(); sx = series_idea(d)
+                print(f"連載「{d['current']['theme']}」第{d['current']['done']+1}回")
+                make("instagram", i, dict(sx, series=d["current"]["theme"]))
     except BudgetExceeded as e:
         print(e)
 
