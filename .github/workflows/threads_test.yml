@@ -1,0 +1,22 @@
+name: threads-test
+on:
+  workflow_dispatch:
+    inputs:
+      text:
+        description: 'Threadsに投稿する文'
+        required: true
+        default: 'はじめまして。IT業界25年、SIerから事業会社のSEを経て、いまは外資系SIerでPMとPLをしています。ここでは、仕事で使えるAIの使い方、伝え方、ITの仕事の話をしていきます。よろしくお願いします。'
+permissions: { contents: read }
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: pip install requests
+      - run: python -m src.threads_test
+        env:
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
+          TEXT: ${{ inputs.text }}
