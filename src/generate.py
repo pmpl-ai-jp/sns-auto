@@ -221,7 +221,7 @@ def write(kind, stage, idea, nxt=None):
     """執筆係"""
     extra = f"\n最後のスライド(cta)の予告はこれにする（変えない）: {nxt}" if nxt else ""
     if kind == "threads":
-        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。400字以内、最後は読者への質問で終える。JSON: {\"text\": \"...\"}"
+        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。150〜300字。短い文で、会話するような口調にする。最後は読者への質問で終える。数字は事実の表にあるものだけ、体験は経歴にあるものだけを使う。URLやハッシュタグは書かない。JSON: {\"text\": \"...\"}"
     return base(stage, idea) + examples() + extra + ("""
 Instagramの保存されるカルーセルを作る。読み終えたら行動できるだけの中身を入れる。
 構成（8〜10枚）:
@@ -278,7 +278,8 @@ def make(kind, idx, idea):
     aff = random.choice(cands) if cands else None
     prompt = write(kind, stage, idea["idea"], idea.get("next"))
     issues = ["未生成"]
-    for attempt in range(G["max_rewrite"] + 1):
+    tries = G["max_rewrite"] + (2 if kind == "threads" else 1)   # Threadsは書き直しを1回多くする
+    for attempt in range(tries):
         out = generate_json(prompt, role="writer")
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
@@ -308,6 +309,23 @@ def make(kind, idx, idea):
     if idea.get("series"): post["series"] = idea["series"]
     save_post(post); print(post["id"], post["status"], post["issues"])
     if idea.get("series") and post["status"] == "approved": mark_done()   # 連載は、公開できる回ができたときだけ次へ進める
+    return post
+
+
+THREADS_ROLES = [
+    "今日のInstagramの投稿の要点を1つだけ取り出して、短く伝える。結論→理由1つ→読者への問いかけ",
+    "今日のInstagramと同じテーマで、経歴にある実際の体験を1つ添えた補足。Instagramとは違う切り口にする",
+    "今夜20時ごろInstagramで公開する投稿の案内。何が分かるかを1〜2点だけ示し、見たくなる問いかけで終える。URLは書かない",
+    "今日のテーマの振り返りとして、読者の経験を聞く問いかけ。答えやすい選択肢を2〜3個示す",
+]
+
+def threads_ideas(ig):
+    """Instagramの投稿をもとに、Threadsの4本のネタを作る（Instagramと同じテーマで1日の流れを作る）"""
+    sl = ig.get("slides") or []
+    summary = (f"今日のInstagramの投稿: 表紙「{sl[0]['title'] if sl else ''}」。"
+               f"各スライドの見出し: {[s['title'] for s in sl[1:-1]]}。"
+               f"キャプションの冒頭: {ig.get('caption', '')[:200]}")
+    return [{"stage": ig["stage"], "idea": f"{summary}\nこの投稿の役割: {r}"} for r in THREADS_ROLES]
 
 def main():
     if killed(): print("KILL_SWITCH ON: skip"); return
@@ -326,19 +344,28 @@ def main():
             ks = list(w); st = random.choices(ks, weights=[w[k] for k in ks])[0]
             m = [i for i in ideas if i["stage"] == st]
             return random.choice(m) if m else {"stage": st, "idea": random.choice(T[st]["examples"])}
-        for i in range(setting("threads_per_day")): make("threads", i, pick())
         weekday = now().weekday() < 5
+        ig_posts = []
         for i in range(S["instagram_per_day"]):
             if ov or not weekday:                 # ネタの指定がある日・週末は単発
                 it = pick()
                 if not weekday:                   # 週末の単発は、月曜から再開する連載の回を予告する
                     d = current_series(); sx = series_idea(d)
                     it = dict(it, next=f"月曜から連載「{d['current']['theme']}」の続き:{d['current']['episodes'][d['current']['done']]['title']}")
-                make("instagram", i, it)
+                ig_posts.append(make("instagram", i, it))
             else:                                 # 平日は連載の次の回
                 d = current_series(); skip_if_stuck(d); d = load_series(); sx = series_idea(d)
                 print(f"連載「{d['current']['theme']}」第{d['current']['done']+1}回")
-                make("instagram", i, dict(sx, series=d["current"]["theme"]))
+                ig_posts.append(make("instagram", i, dict(sx, series=d["current"]["theme"])))
+        # Threads: Instagramが通っていれば、その内容とつなげる。通らなかった日は単発のネタで作る
+        ig_ok = next((p for p in ig_posts if p and p.get("status") == "approved"), None)
+        linked = threads_ideas(ig_ok) if ig_ok else []
+        for i in range(setting("threads_per_day")):
+            it = linked[i] if i < len(linked) else pick()
+            p = make("threads", i, it)
+            if p.get("status") != "approved":                  # 止まったら、別のネタで1回だけ作り直す
+                print(f"Threads {i+1}本目が止まったため、別のネタで作り直す:", p.get("issues"))
+                make("threads", i, pick())
     except BudgetExceeded as e:
         print(e)
 
