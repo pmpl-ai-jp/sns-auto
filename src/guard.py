@@ -7,13 +7,20 @@ EPISODES = P.get("episodes") or []
 NOT_ME = P.get("not_me") or []
 
 def check(text, facts_text=""):
-    """問題点のリストを返す。空ならOK。"""
-    issues = [f"NGワード: {w}" for w in G["ng_words"] if w in text]
+    """問題点のリストを返す。空ならOK。
+    NGワードは「約束・断定」の形のときだけ止める。「保証しません」のような注意書きの言い回しは通す"""
+    t = text
+    for ok in G.get("allowed_phrases", []):       # 許可する言い回しを取り除いてから判定する
+        t = t.replace(ok, "")
+    issues = [f"NGワード: {w}" for w in G["ng_words"] if w in t]
+    for pat in G.get("promise_patterns", []):     # 約束の形は、許可した言い回しの中でも止める
+        m = re.search(pat, text)
+        if m: issues.append(f"約束・断定の表現: {m.group(0)}")
     for m in re.finditer(G["number_pattern"], text):
         if m.group(0) not in facts_text:
             issues.append(f"出典のない数字: {m.group(0)}")
     issues += experience_issues(text)
-    return issues
+    return list(dict.fromkeys(issues))
 
 def experience_issues(text):
     """体験談らしい表現があり、episodes のどれとも結びつかなければ指摘する"""
