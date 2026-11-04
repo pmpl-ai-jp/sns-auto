@@ -1,5 +1,5 @@
 """毎朝実行: リサーチ係 → 企画係 → 執筆係 → チェック係 の順に動き、当日分を queue/ に保存"""
-import random, json, datetime, os, yaml
+import random, json, datetime, os, yaml, copy
 from .common import load, now, save_post, killed, ROOT, in_warmup, setting
 from .llm import generate_json
 from .guard import check, apply_pr, logic_check, design_check, G
@@ -34,8 +34,8 @@ def history(n=40):
     return [p["idea"] for p in xs[-n:]]
 
 def teaser():
-    """直近に公開した（または公開待ちの）投稿の最後のスライドにある「次回予告」を取り出す。
-    次の投稿はその予告に答えるものにして、投稿どうしがつながるようにする"""
+    """直近に公開した投稿の最後のスライドにある「次回予告」（題名と本文）を取り出す。
+    次の投稿はこの約束を果たす内容にする"""
     from .common import iter_posts
     xs = [p for _, p in iter_posts() if p.get("kind") == "instagram" and p.get("slides")
           and p.get("status") == "published"]      # 読者が実際に見た（公開済みの）投稿の予告だけを引き継ぐ
@@ -44,6 +44,16 @@ def teaser():
     cta = next((s for s in reversed(last["slides"]) if s.get("type") == "cta"), None)
     if not cta: return ""
     return f"直近の投稿「{last['slides'][0]['title']}」の最後で、読者に次のように予告した: {cta['title']}。{cta['body']}"
+
+def last_promise():
+    """直近に作った（公開済み、または公開待ち）連載の回の予告。次の回で必ず果たす中身として渡す"""
+    from .common import iter_posts
+    xs = [p for _, p in iter_posts() if p.get("kind") == "instagram" and p.get("slides") and p.get("series")
+          and p.get("status") in ("published", "approved")]
+    if not xs: return ""
+    last = sorted(xs, key=lambda p: p["created"])[-1]
+    cta = next((s for s in reversed(last["slides"]) if s.get("type") == "cta"), None)
+    return f"{cta['title']}。{cta['body']}" if cta else ""
 
 def trend():
     """トレンド調査係: ウェブ検索で、今話題になっていることを集める（失敗しても投稿づくりは止めない）"""
@@ -151,13 +161,25 @@ def current_series():
 def series_idea(d):
     """今日書く回のネタと、最後のスライドで予告する内容"""
     c = d["current"]; n = c["done"]; ep = c["episodes"][n]; total = len(c["episodes"])
+    promise = last_promise() if n > 0 else ""
     idea = (f"連載「{c['theme']}」第{n+1}回（全{total}回）:{ep['title']}。この回で書くこと: {ep['point']}。"
-            f"連載のゴール: {c['goal']}。前の回までの内容: {[e['title'] for e in c['episodes'][:n]]}")
+            f"連載のゴール: {c['goal']}。前の回までの内容: {[e['title'] for e in c['episodes'][:n]]}"
+            + (f"。前の回の最後で読者に約束した内容（この回で必ず扱う。題名だけでなく本文の中身も入れる）: {promise}" if promise else ""))
     if n + 1 < total:
         nxt = f"次回:{c['episodes'][n+1]['title']}（連載「{c['theme']}」第{n+2}回）"
     else:
         nxt = "連載の最終回。最後のスライドでは、連載全体のまとめとして保存をすすめ、次の連載が始まることを一言だけ予告する"
     return {"stage": c["stage"], "idea": idea, "next": nxt}
+
+def skip_if_stuck(d):
+    """同じ回が3回続けて公開できなかったときは、その回を飛ばして次へ進む（連載が止まり続けないように）"""
+    c = d["current"]
+    if not c: return
+    tries = c.setdefault("tries", {}); k = str(c["done"])
+    tries[k] = tries.get(k, 0) + 1
+    if tries[k] > 3 and c["done"] + 1 < len(c["episodes"]):
+        print(f"第{c['done']+1}回が3回続けて通らなかったため、次の回へ進む"); c["done"] += 1
+    save_series(d)
 
 def mark_done():
     d = load_series()
@@ -173,7 +195,8 @@ BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 - 経歴の年数や順番は次の通り。これ以外の数字や順番を書かない: {career}
 - 自己紹介は1〜2文に短くまとめ（例:「IT業界25年。SIerから事業会社のSEを経て、いまは外資系SIerでPMとPLをしています」）、年数の内訳や括弧書きの補足を並べない
 - 体験・具体的な手順ベース。煽らない。断定や収益の約束をしない
-- 次の語は使わない: {ng}
+- 次の語は、約束や断定の形では使わない: {ng}
+  - 「保証しません」「必ずしも〜ではない」のような注意書きでも、機械チェックで止まることがある。迷ったら「確かではない」「限らない」など別の言い方にする
 - 数字は次の事実一覧にあるものだけ使う。なければ数字を書かない:
 {facts}
 - 体験談のルール（最重要）:
@@ -210,7 +233,7 @@ n枚目: 保存とフォローを促す（次に何を発信するか一言）
 文字数: title 16字以内, body 60〜110字。体言止めと短い文を混ぜ、硬い「です・ます」の連続を避ける
 禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のtitleには「誰が・何を」が分かる言葉を入れる（例:「SIerから移る前に4つ確認する」）。
       最後のスライドのtitleに「NEXT」などの英字ラベルを付けない。最後のスライドのbodyに「保存して」を書かない（保存ボタンはデザイン側で付く）。
-      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（AI仕事術、キャリア、伝え方）に沿った内容にする。最後のスライドのbodyは、titleで予告した中身を具体的に説明する（titleと違う話を書かない）。
+      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（AI仕事術、キャリア、伝え方）に沿った内容にする。最後のスライドのbodyは、titleで予告した中身を具体的に説明する（titleと違う話を書かない）。予告の本文には、次の回で必ず書く内容を1〜2点、具体的に書く（次の回はこの約束を果たす）。
       同じものを指す言葉は全スライドで統一する。社内用語（例:「脱ホスト」）は一般の人にも分かる言葉に言い換える。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
       bodyに「悩み：」「例：」「質問：」のようなラベルを付けない（「たとえば〜」「〜と聞いてみる」など自然な文にする）
 checklist の body は、項目ごとに改行（\n）で区切る
@@ -221,18 +244,27 @@ JSON: {"slides": [{"type": "cover", "title": "...", "body": "..."}], "caption": 
 
 def design_loop(post_id, out, prompt, pr):
     """画像を作り、機械チェック→デザインのレビュー。
-    見た目が壊れている問題(blocking)は直して作り直し（最大2回）。細かい改善点は1回だけ反映して、止めずに進める"""
+    見た目が壊れている問題(blocking)は直して作り直す（最大2回）。
+    細かい改善点(suggestions)は1回だけ反映するが、反映して悪くなったら、通っていた版に戻して公開する"""
+    best = None                                   # 公開できる状態（blockingなし）の最新の版
     polished = False
-    for attempt in range(3):
+    for attempt in range(4):
         paths, warns = render_carousel(post_id, out["slides"], pr=pr)
         if warns: issues, sugg = warns, []
         else: issues, sugg = design_check(paths)
-        if not issues and (not sugg or polished): return paths, []
-        if attempt == 2: break
+        if not issues:
+            best = (list(paths), copy.deepcopy(out["slides"]))
+            if not sugg or polished: return paths, []
+        elif best:                                # 磨いた結果、新しい問題が出た → 通っていた版に戻す
+            print("磨き直しで問題が出たため、前の版に戻す:", issues)
+            out["slides"] = best[1]
+            paths, _ = render_carousel(post_id, out["slides"], pr=pr)
+            return paths, []
+        if attempt >= 3 or (issues and attempt >= 2): break
         todo = issues if issues else sugg
         if not issues: polished = True
         fix = generate_json(prompt + f"""
-前回のカルーセルを画像にしたところ、直したい点がありました。内容は保ったまま、文字量や言い回しを直したslidesだけを返してください。
+前回のカルーセルを画像にしたところ、直したい点がありました。内容は保ったまま、文字量や言い回しを直したslidesだけを返してください。文字は増やさず、減らす方向で直す。
 前回のslides: {json.dumps(out["slides"], ensure_ascii=False)}
 直す点: {todo}
 JSON: {{"slides": [...]}}""", role="writer")
@@ -304,7 +336,7 @@ def main():
                     it = dict(it, next=f"月曜から連載「{d['current']['theme']}」の続き:{d['current']['episodes'][d['current']['done']]['title']}")
                 make("instagram", i, it)
             else:                                 # 平日は連載の次の回
-                d = current_series(); sx = series_idea(d)
+                d = current_series(); skip_if_stuck(d); d = load_series(); sx = series_idea(d)
                 print(f"連載「{d['current']['theme']}」第{d['current']['done']+1}回")
                 make("instagram", i, dict(sx, series=d["current"]["theme"]))
     except BudgetExceeded as e:
