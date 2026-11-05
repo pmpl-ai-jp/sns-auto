@@ -9,9 +9,16 @@ from .common import in_warmup
 SLOTS = {"threads": [8, 12, 19, 22], "instagram": [20]}  # Threadsは1日4本
 if in_warmup(): SLOTS["threads"] = [8, 12, 19, 22]  # 立ち上げ期間中は1日4回  # JSTの投稿時刻
 
-def post_threads(text):
+def post_threads(text, topic=""):
+    """Threadsに投稿する。トピックを付けて失敗したときは、付けずにもう一度試す"""
     uid, tok = os.environ["THREADS_USER_ID"], os.environ["THREADS_TOKEN"]
-    c = requests.post(f"{TH}/{uid}/threads", params={"media_type": "TEXT", "text": text, "access_token": tok}, timeout=60)
+    def create(with_topic):
+        params = {"media_type": "TEXT", "text": text, "access_token": tok}
+        if with_topic and topic: params["topic_tag"] = topic
+        return requests.post(f"{TH}/{uid}/threads", params=params, timeout=60)
+    c = create(True)
+    if c.status_code >= 400 and topic:
+        print("トピック付きで失敗したため、トピックなしで再試行:", c.text[:200]); c = create(False)
     c.raise_for_status(); time.sleep(5)
     r = requests.post(f"{TH}/{uid}/threads_publish", params={"creation_id": c.json()["id"], "access_token": tok}, timeout=60)
     r.raise_for_status(); return r.json()["id"]
@@ -57,7 +64,7 @@ def main():
         for path, post in iter_posts():
             if post["kind"] == kind and post["status"] == "approved" and post["created"][:10] <= today:
                 try:
-                    pid = post_threads(post["text"]) if kind == "threads" else post_instagram(post["images"], post["caption"])
+                    pid = post_threads(post["text"], post.get("topic", "")) if kind == "threads" else post_instagram(post["images"], post["caption"])
                     post.update(status="published", published_id=pid, published_at=now().isoformat())
                 except Exception as e:
                     post.update(status="error", error=str(e)[:500])

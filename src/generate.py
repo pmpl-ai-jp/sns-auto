@@ -221,7 +221,7 @@ def write(kind, stage, idea, nxt=None):
     """執筆係"""
     extra = f"\n最後のスライド(cta)の予告はこれにする（変えない）: {nxt}" if nxt else ""
     if kind == "threads":
-        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。150〜300字。短い文で、会話するような口調にする。最後は読者への質問で終える。数字は事実の表にあるものだけ、体験は経歴にあるものだけを使う。URLやハッシュタグは書かない。JSON: {\"text\": \"...\"}"
+        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。「オフィスあるある」の形で書く。1行目は、読んだ人が「あるある」と思う具体的な場面にする（例:「ご確認ください」だけのメール）。続けて、なぜ困るかを1〜2文、直し方のコツを2〜3点（「・」の箇条書き）、最後は答えやすい問いかけで終える。150〜300字。短い文で、会話するような口調。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
     return base(stage, idea) + examples() + extra + ("""
 Instagramの保存されるカルーセルを作る。読み終えたら行動できるだけの中身を入れる。
 構成（8〜10枚）:
@@ -295,6 +295,7 @@ def make(kind, idx, idea):
             "created": now().isoformat(), "issues": issues, "affiliate": aff["id"] if aff else None}
     if kind == "threads":
         post["text"] = apply_pr(out["text"] + ("\n詳しくはプロフィールのリンクから" if aff else ""), bool(aff))
+        post["topic"] = (out.get("topic") or "").replace("#", "").strip()[:50]
     else:
         post["caption"] = apply_pr(out["caption"] + ("\n詳しくはプロフィールのリンクから" if aff else ""), bool(aff))
         if not issues:
@@ -313,19 +314,19 @@ def make(kind, idx, idea):
 
 
 THREADS_ROLES = [
-    "今日のInstagramの投稿の要点を1つだけ取り出して、短く伝える。結論→理由1つ→読者への問いかけ",
-    "今日のInstagramと同じテーマで、経歴にある実際の体験を1つ添えた補足。Instagramとは違う切り口にする",
-    "今夜20時ごろInstagramで公開する投稿の案内。何が分かるかを1〜2点だけ示し、見たくなる問いかけで終える。URLは書かない",
-    "今日のテーマの振り返りとして、読者の経験を聞く問いかけ。答えやすい選択肢を2〜3個示す",
+    "AI活用のあるある。仕事でAIを使う人が「自分もそうだ」と思う場面から入り、ちょっとした解決のコツを2〜3点示す",
+    "ロジカルシンキング・伝え方のオフィスあるある（会議、報告、メール、依頼など）。よくある失敗の場面から入り、直し方を短く示す",
+    "IT転職・キャリアのあるある（求人票、面接、職務経歴書、SIerと事業会社など）。共感される場面から入り、確認するとよいことを示す",
+    "AI活用か伝え方のあるある。その日の他の投稿と違う場面を選ぶ",
 ]
 
 def threads_ideas(ig):
-    """Instagramの投稿をもとに、Threadsの4本のネタを作る（Instagramと同じテーマで1日の流れを作る）"""
-    sl = ig.get("slides") or []
-    summary = (f"今日のInstagramの投稿: 表紙「{sl[0]['title'] if sl else ''}」。"
-               f"各スライドの見出し: {[s['title'] for s in sl[1:-1]]}。"
-               f"キャプションの冒頭: {ig.get('caption', '')[:200]}")
-    return [{"stage": ig["stage"], "idea": f"{summary}\nこの投稿の役割: {r}"} for r in THREADS_ROLES]
+    """Threadsの4本のネタ。Instagramには誘導せず、1本で完結する「あるある」形式にする。
+    その日のInstagramのテーマは、重ならないよう参考として渡すだけ"""
+    sl = (ig or {}).get("slides") or []
+    avoid = f"（今日のInstagramは「{sl[0]['title']}」。同じ内容の言い換えにはしない）" if sl else ""
+    return [{"stage": "ai_work" if k in (0, 3) else ("logic" if k == 1 else "career_exp"),
+             "idea": f"この投稿の役割: {r}{avoid}"} for k, r in enumerate(THREADS_ROLES)]
 
 def main():
     if killed(): print("KILL_SWITCH ON: skip"); return
@@ -359,13 +360,13 @@ def main():
                 ig_posts.append(make("instagram", i, dict(sx, series=d["current"]["theme"])))
         # Threads: Instagramが通っていれば、その内容とつなげる。通らなかった日は単発のネタで作る
         ig_ok = next((p for p in ig_posts if p and p.get("status") == "approved"), None)
-        linked = threads_ideas(ig_ok) if ig_ok else []
+        linked = threads_ideas(ig_ok)                           # Instagramが止まった日も、あるある形式で4本作る
         for i in range(setting("threads_per_day")):
             it = linked[i] if i < len(linked) else pick()
             p = make("threads", i, it)
             if p.get("status") != "approved":                  # 止まったら、別のネタで1回だけ作り直す
-                print(f"Threads {i+1}本目が止まったため、別のネタで作り直す:", p.get("issues"))
-                make("threads", i, pick())
+                print(f"Threads {i+1}本目が止まったため、作り直す:", p.get("issues"))
+                make("threads", i, linked[(i + 1) % len(linked)])   # 別の役割（あるあるの種類）で作り直す
     except BudgetExceeded as e:
         print(e)
 
