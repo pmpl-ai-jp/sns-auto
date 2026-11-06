@@ -6,7 +6,7 @@ from .llm import generate_json
 
 def main():
     S = load("config/settings.yaml"); P = load("config/profile.yaml")
-    from .budget import spent
+    from .budget import spent, cost_summary
     posts = [p for _, p in iter_posts()]
     week_ago = now() - datetime.timedelta(days=7)
     recent = [p for p in posts if datetime.datetime.fromisoformat(p["created"]) >= week_ago]
@@ -18,7 +18,7 @@ def main():
     rejected = [{"ネタ": p.get("idea"), "止まった理由": (p.get("issues") or [])[:2]} for p in recent if p["status"] == "rejected"]
     errors = [p.get("error") for p in recent if p["status"] == "error"][-5:]
     data = {"期間": f"{week_ago:%m/%d}〜{now():%m/%d}", "状態の内訳": dict(st), "公開した投稿": rows,
-            "チェックで止めた投稿": rejected, "エラー": errors, "今月のAI費用(円)": round(spent())}
+            "チェックで止めた投稿": rejected, "エラー": errors, "AI費用": cost_summary()}
     out = generate_json(f"""AIエージェントでSNS運用を自動化している人の、週1回の運用ログをnote用に書いてください。
 筆者: {S["persona"]}
 筆者が一人称で語ってよい経験: {P.get("episodes")}
@@ -30,6 +30,7 @@ def main():
 - 構成: 今週の数字 / 伸びた投稿と、その理由の仮説 / 止まった投稿と、仕組みで直したこと / 来週試すこと / 今週の費用
 - 「理由」はデータからの仮説として書き、断定しない。投稿が少ない週は「まだ判断できない」と正直に書く
 - 読者（AIで仕事を自動化したい会社員）が自分でも使える学びを、1つ以上入れる
+- 「今週の費用」では、AI費用の今週の合計（ドルと円）と今月の合計を書く。日別の記録があれば、多かった日と理由の仮説を1つ書く。円は目安であることを一言添える
 - 煽らない。「必ず」「稼げる」は使わない。収益の数字は書かない
 - 最後に『本記事はAIを使って作成し、筆者が確認しています』と書く
 JSON: {{"title": "...", "markdown": "見出し付き本文"}}""", 0.5, role="planner", max_tokens=8000)
