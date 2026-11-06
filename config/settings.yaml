@@ -28,9 +28,10 @@ prices:   # 2026-10-31時点。変わったら更新する（上限計算に使�
   claude-haiku-5-5: { in: 0.10, out: 0.50 }
   gemini-2.5-flash-lite: { in: 0.10, out: 0.40 }
   gemini-2.5-flash: { in: 0.30, out: 2.50 }
-usd_jpy: 150
+usd_jpy: 180   # 実際の請求（為替＋消費税10%＋カード手数料）に合わせる。$5で約900円
 # 月の上限（円）。超えたらその月のAI呼び出しを止める。3,000円を絶対に超えないための安全装置
 monthly_budget_jpy: 2500
+budget_stop: false   # true にすると、上限で自動停止する。false は記録だけ（noteの運用ログ用）
 # 自動返信の上限
 reply_per_day: 30
 
