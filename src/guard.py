@@ -42,7 +42,8 @@ def logic_check(text):
     from .llm import generate_json
     P = load("config/profile.yaml")
     r = generate_json(f"""次のSNS投稿をレビューしてください。
-筆者の経歴（ここにある経験は事実として確認済み。根拠不足として扱わない）:
+筆者の経歴（ここにある年数・順番・役割・経験は、すべて事実として確認済み。根拠不足として扱わない）:
+{P.get("profile")}
 {P.get("episodes")}
 
 【公開を止める問題（blocking）】次に当てはまるものだけ:

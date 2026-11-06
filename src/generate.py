@@ -1,5 +1,5 @@
 """毎朝実行: リサーチ係 → 企画係 → 執筆係 → チェック係 の順に動き、当日分を queue/ に保存"""
-import random, json, datetime, os, yaml, copy
+import random, json, datetime, os, yaml, copy, re
 from .common import load, now, save_post, killed, ROOT, in_warmup, setting
 from .llm import generate_json
 from .guard import check, apply_pr, logic_check, design_check, G
@@ -185,6 +185,36 @@ def mark_done():
     d = load_series()
     if d["current"]: d["current"]["done"] += 1; save_series(d)
 
+STRUCTURES = [
+    "具体的な場面から入り、何が起きたか→どうしたか→学んだこと、の順で書く",
+    "よくある失敗から入り、なぜそうなるか→避け方、の順で書く",
+    "結論を一言で言い切ってから、理由を1〜2つだけ書く",
+    "2つのやり方（または立場）を比べて、違いを書く",
+    "コツを1つだけに絞り、それを深く具体的に書く",
+]
+
+def style_rules():
+    """文体のルール（AIっぽさを減らす）。文体メモがあれば、それに寄せる"""
+    st = load("config/style.yaml") if (ROOT / "config/style.yaml").exists() else {}
+    rules = (
+        "\n- 構成は次の型で書く（毎回同じ型にしない）: " + random.choice(STRUCTURES) +
+        "\n- 次の言い回しは使わない: " + "、".join(G.get("ai_phrases", [])) +
+        "\n- 「〜と思います」「〜と考えます」は1投稿に2回まで。事実は言い切り、意見だけを意見として書く"
+        "\n- 同じ語尾を3文続けない。「です・ます」の中に、短い言い切りや体言止めを少し混ぜる。ただし決めぜりふのような体言止めで締めない"
+        "\n- 「まず」「次に」「最後に」のような段取りの言葉や、「〜について説明します」のような前置きを書かない"
+        "\n- 文の長さに変化をつける（短い文と長めの文を混ぜる）")
+    if st.get("notes"): rules += "\n- 筆者の文体の特徴（これに寄せる。中身はまねしない）: " + "／".join(st["notes"])
+    if st.get("phrases"): rules += "\n- 筆者がよく使う言い回し（自然に使える場面なら使う）: " + "、".join(st["phrases"])
+    if st.get("avoid"): rules += "\n- 筆者が使わない言い回し: " + "、".join(st["avoid"])
+    return rules
+
+def ai_tone_issues(text):
+    """AIっぽい決まり文句や、ぼかし表現の多用を見つける（書き直しの参考にするだけで、公開は止めない）"""
+    out = [f"AIっぽい言い回し「{p}」" for p in G.get("ai_phrases", []) if p.replace("〜", "") in text]
+    n = sum(text.count(h) for h in G.get("hedge_words", []))
+    if n > G.get("hedge_max", 2): out.append(f"「〜と思います」「〜と考えます」が{n}回ある。2回までにする")
+    return out
+
 BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 テーマ: {stage}
 ネタ: {idea}
@@ -209,7 +239,7 @@ BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 def base(stage, idea):
     return BASE.format(persona=S["persona"], stage=T[stage]["name"], idea=idea, ng="、".join(G["ng_words"]),
                        facts=FACTS_TEXT or "（なし）", episodes=PR.get("episodes") or "（なし）",
-                       not_me="、".join(PR.get("not_me") or []), career="／".join((PR.get("profile") or {}).get("career_history") or []))
+                       not_me="、".join(PR.get("not_me") or []), career="／".join((PR.get("profile") or {}).get("career_history") or [])) + style_rules()
 
 def examples():
     """伸びた投稿を、お手本として執筆係に渡す（文体・構成の参考。内容はコピーしない）"""
@@ -221,7 +251,7 @@ def write(kind, stage, idea, nxt=None):
     """執筆係"""
     extra = f"\n最後のスライド(cta)の予告はこれにする（変えない）: {nxt}" if nxt else ""
     if kind == "threads":
-        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。「オフィスあるある」の形で書く。1行目は、読んだ人が「あるある」と思う具体的な場面にする（例:「ご確認ください」だけのメール）。続けて、なぜ困るかを1〜2文、直し方のコツを2〜3点（「・」の箇条書き）、最後は答えやすい問いかけで終える。150〜300字。短い文で、会話するような口調。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
+        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。「オフィスあるある」の形で書く。1行目は、読んだ人が「あるある」と思う具体的な場面にする（例:「ご確認ください」だけのメール）。続けて、なぜ困るかを1〜2文、直し方のコツを2〜3点（「・」の箇条書き）を示し、最後は言い切りの一文で締める（質問や問いかけで終えない。例:「結論から言うだけで、会議は短くなります。」）。150〜300字。短い文で、会話するような口調。箇条書きは「・」で項目だけを並べ、例や説明は箇条書きの中に入れず、箇条書きのあとの文にまとめる。括弧書きの補足は書かない（意味を足したいときは、本文の文にする）。読者への呼びかけを入れる場合は「あなた」にそろえ、「みなさん」「皆さん」は使わない。文末は「？」「?」「でしょうか」「ですか」で終えない。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。「実体験型」の役割のときは、経歴の episodes から場面を1つ選んで書く。episodes にない場面や、細かい状況の作り話は足さない。1行目に「PMとして」「事業会社のSE時代」など、筆者の立場や時期を一言入れる。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
     return base(stage, idea) + examples() + extra + ("""
 Instagramの保存されるカルーセルを作る。読み終えたら行動できるだけの中身を入れる。
 構成（8〜10枚）:
@@ -283,8 +313,10 @@ def make(kind, idx, idea):
         out = generate_json(prompt, role="writer")
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
+        if kind == "threads" and not issues: issues = threads_format_issues(out["text"])   # 形の崩れは書き直しで直す
         suggestions = []
         if not issues: issues, suggestions = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
+        if not issues: suggestions = list(suggestions) + ai_tone_issues(text)   # AIっぽさは止めずに1回だけ直す
         if not issues:
             if suggestions and attempt == 0:   # 重大な問題はないが改善点がある → 1回だけ磨く（失敗扱いにはしない）
                 prompt += f"\n内容は良いので、次の改善点だけ反映して全体を書き直してください: {suggestions}"
@@ -313,20 +345,47 @@ def make(kind, idx, idea):
     return post
 
 
+
+def threads_format_issues(text):
+    """Threadsの文章の形の崩れを見つける（箇条書きの途中の例・括弧書きの補足・呼びかけの不統一）"""
+    out = []
+    lines = text.split("\n")
+    bullets = [i for i, l in enumerate(lines) if l.strip().startswith("・")]
+    if bullets:
+        first, last = bullets[0], bullets[-1]
+        for i in range(first, last + 1):             # 箇条書きの範囲に、箇条書きでない行が挟まっていないか
+            s = lines[i].strip()
+            if s and not s.startswith("・"):
+                out.append(f"箇条書きの途中に説明や例が入っている:「{s[:20]}」。例は箇条書きのあとにまとめる")
+                break
+    if re.search(r"[（(][^）)]{3,}[）)]", text):
+        out.append("括弧書きの補足が入っている。補足は本文の文にする")
+    tail = text.strip().splitlines()[-1].strip() if text.strip() else ""
+    if re.search(r"[？?]\s*$|(でしょうか|ですか|ませんか|ますか|でしょう)[。]?\s*$", tail):
+        out.append("最後の一文が疑問文（問いかけ）になっている。言い切りの一文で締める")
+    if re.search(r"みなさん|皆さん|皆様", text):
+        out.append("呼びかけが「あなた」にそろっていない（「みなさん」を使っている）")
+    return out
+
 THREADS_ROLES = [
-    "AI活用のあるある。仕事でAIを使う人が「自分もそうだ」と思う場面から入り、ちょっとした解決のコツを2〜3点示す",
-    "ロジカルシンキング・伝え方のオフィスあるある（会議、報告、メール、依頼など）。よくある失敗の場面から入り、直し方を短く示す",
-    "IT転職・キャリアのあるある（求人票、面接、職務経歴書、SIerと事業会社など）。共感される場面から入り、確認するとよいことを示す",
-    "AI活用か伝え方のあるある。その日の他の投稿と違う場面を選ぶ",
+    # 1本目: 経歴の実体験にもとづく型（反応が出た「議事録とレビュー」「SIerと事業会社」の系統）
+    "実体験型。経歴にある実際の経験（事業会社のSE時代のレビュー、ベンダーとのやり取り、計画づくり、障害対応、SIerと事業会社の違いなど）から1つ選び、その場面を1行目に置く。「そのとき何に気づいたか」を短く示し、読者がすぐ使えるコツを2〜3点添える。AIの話は、その経験につながるときだけ入れる",
+    # 2本目: 一般的なあるある（共感）
+    "ロジカルシンキング・伝え方のオフィスあるある（会議、報告、メール、依頼など）。よくある失敗の場面から入り、直し方を短く示す。1行目に筆者の立場（PMとして見てきた、など）を一言添える",
+    # 3本目: キャリアの実体験型
+    "キャリアの実体験型。SIerと事業会社、受注側と発注側の両方を経験した立場から、「入る前に知りたかったこと」を1つ取り上げる。経歴にある事実だけを使い、確認するとよいことを2〜3点示す",
+    # 4本目: AI活用のあるある（実体験を一言添える）
+    "AI活用のあるある。仕事でAIを使う人が「自分もそうだ」と思う場面から入り、解決のコツを2〜3点示す。レビューや計画づくりなど、経歴にある経験を一言だけ添える",
 ]
+
 
 def threads_ideas(ig):
     """Threadsの4本のネタ。Instagramには誘導せず、1本で完結する「あるある」形式にする。
     その日のInstagramのテーマは、重ならないよう参考として渡すだけ"""
     sl = (ig or {}).get("slides") or []
     avoid = f"（今日のInstagramは「{sl[0]['title']}」。同じ内容の言い換えにはしない）" if sl else ""
-    return [{"stage": "ai_work" if k in (0, 3) else ("logic" if k == 1 else "career_exp"),
-             "idea": f"この投稿の役割: {r}{avoid}"} for k, r in enumerate(THREADS_ROLES)]
+    stages = ["career_exp", "logic", "career_exp", "ai_work"]
+    return [{"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}"} for k, r in enumerate(THREADS_ROLES)]
 
 def main():
     if killed(): print("KILL_SWITCH ON: skip"); return
