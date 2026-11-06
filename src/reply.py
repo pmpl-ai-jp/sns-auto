@@ -1,5 +1,5 @@
 """返信係: 自分の投稿に付いた返信・コメントに、公式APIで返事をする（1日の上限つき）"""
-import os, json, requests, datetime
+import os, json, time, requests, datetime
 from .common import iter_posts, ROOT, now, killed, load, setting
 from .llm import generate_json
 from .guard import check
@@ -30,9 +30,18 @@ def threads_replies(mid, tok):
     r.raise_for_status(); return r.json().get("data", [])
 
 def threads_reply(to_id, text, uid, tok):
+    """Threadsで返信する。下書きを作ってから少し待ち、公開する。公開に失敗したら間をあけて数回やり直す"""
     c = requests.post(f"{TH}/{uid}/threads", params={"media_type": "TEXT", "text": text, "reply_to_id": to_id, "access_token": tok}, timeout=60)
+    if c.status_code >= 400: print("返信の下書き作成に失敗:", c.status_code, c.text[:400])
     c.raise_for_status()
-    requests.post(f"{TH}/{uid}/threads_publish", params={"creation_id": c.json()["id"], "access_token": tok}, timeout=60).raise_for_status()
+    cid = c.json()["id"]
+    last = None
+    for wait in (6, 10, 20):                       # 下書きの準備ができるまで待つ（公開が早すぎると400になる）
+        time.sleep(wait)
+        r = requests.post(f"{TH}/{uid}/threads_publish", params={"creation_id": cid, "access_token": tok}, timeout=60)
+        if r.status_code < 400: return r.json().get("id")
+        last = r; print(f"返信の公開に失敗（{wait}秒待ったあと）:", r.status_code, r.text[:400])
+    last.raise_for_status()
 
 def ig_comments(mid, tok):
     r = requests.get(f"{IG}/{mid}/comments", params={"fields": "id,text,username", "access_token": tok}, timeout=30)
@@ -62,9 +71,13 @@ def main():
                 if not t or any(w in t for w in SKIP): continue
                 rep = draft(body, t)
                 if not rep: continue
-                if post["kind"] == "threads": threads_reply(c["id"], rep, os.environ["THREADS_USER_ID"], os.environ["THREADS_TOKEN"])
-                else: ig_reply(c["id"], rep, os.environ["IG_TOKEN"])
-                n += 1; print("replied", c["id"])
+                try:
+                    if post["kind"] == "threads": threads_reply(c["id"], rep, os.environ["THREADS_USER_ID"], os.environ["THREADS_TOKEN"])
+                    else: ig_reply(c["id"], rep, os.environ["IG_TOKEN"])
+                    n += 1; print("replied", c["id"])
+                except Exception as e:                       # 1件の失敗で全体を止めない。次の実行でもう一度試す
+                    print("返信に失敗（次の実行で再試行）:", c["id"], str(e)[:200])
+                    if c["id"] in st["ids"]: st["ids"].remove(c["id"])
     except BudgetExceeded as e:
         print(e)
     finally:
