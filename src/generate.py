@@ -416,6 +416,10 @@ def main():
             else:                                 # 平日は連載の次の回
                 d = current_series(); skip_if_stuck(d); d = load_series(); sx = series_idea(d)
                 print(f"連載「{d['current']['theme']}」第{d['current']['done']+1}回")
+                if now().weekday() == 4 and "連載の最終回" not in sx["next"]:
+                    # 金曜は、週末が単発であること・連載の続きが月曜からであることを、最後のスライドで伝える
+                    sx = dict(sx, next=sx["next"].replace("次回:", "月曜から連載の続き:", 1)
+                              + "。最後のスライドのbodyには「週末は単発ネタをお届けします。連載の続きは月曜から」と一言入れる")
                 ig_posts.append(make("instagram", i, dict(sx, series=d["current"]["theme"])))
         # Threads: Instagramが通っていれば、その内容とつなげる。通らなかった日は単発のネタで作る
         ig_ok = next((p for p in ig_posts if p and p.get("status") == "approved"), None)
