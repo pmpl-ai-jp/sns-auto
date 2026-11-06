@@ -23,7 +23,12 @@ def draft(post_text, comment):
 自分の投稿: {post_text}
 相手の返信: {comment}
 JSON: {{"reply": "...", "should_reply": true/false}}""", 0.5)
-    return r["reply"] if r.get("should_reply") and not check(r["reply"]) else None
+    rep = (r.get("reply") or "").strip()
+    if not r.get("should_reply"): return None, "AIが返さないと判断", rep
+    if not rep: return None, "返信文が空", rep
+    ng = check(rep)
+    if ng: return None, f"自動チェックで停止: {ng}", rep
+    return rep, "", rep
 
 def threads_replies(mid, tok):
     r = requests.get(f"{TH}/{mid}/replies", params={"fields": "id,text,username,is_reply_owned_by_me", "access_token": tok}, timeout=30)
@@ -66,11 +71,18 @@ def main():
             for c in items:
                 if n >= setting("reply_per_day"): break
                 if c["id"] in st["ids"]: continue
-                st["ids"].append(c["id"])
                 t = c.get("text", "")
-                if not t or any(w in t for w in SKIP): continue
-                rep = draft(body, t)
-                if not rep: continue
+                hit = [w for w in SKIP if w in t]
+                if not t or hit:                              # 返さない内容は対応済みにする
+                    print("飛ばした（返さない言葉）:", c["id"], hit or "本文なし"); st["ids"].append(c["id"]); continue
+                rep, why, raw = draft(body, t)
+                if not rep:
+                    tries = st.setdefault("tries", {}); tries[c["id"]] = tries.get(c["id"], 0) + 1
+                    print(f"飛ばした（{why}）:", c["id"], f"{tries[c['id']]}回目", "| 文案:", raw[:120])
+                    # AIが返さないと判断したとき、または3回止まったら対応済みにする。それ以外は次の実行で再挑戦
+                    if why == "AIが返さないと判断" or tries[c["id"]] >= 3: st["ids"].append(c["id"])
+                    continue
+                st["ids"].append(c["id"])
                 try:
                     if post["kind"] == "threads": threads_reply(c["id"], rep, os.environ["THREADS_USER_ID"], os.environ["THREADS_TOKEN"])
                     else: ig_reply(c["id"], rep, os.environ["IG_TOKEN"])
@@ -81,7 +93,7 @@ def main():
     except BudgetExceeded as e:
         print(e)
     finally:
-        st["count"] = {today: n}; st["ids"] = st["ids"][-3000:]
+        print(f"今日の返信数: {n}件"); st["count"] = {today: n}; st["ids"] = st["ids"][-3000:]; st["tries"] = {k: v for k, v in st.get("tries", {}).items() if k not in st["ids"]}
         p.write_text(json.dumps(st))
 
 if __name__ == "__main__":
