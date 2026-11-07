@@ -35,7 +35,11 @@ def post_instagram(images, caption):
     base = S["public_base_url"].rstrip("/")
     children = []
     for img in images:
-        r = requests.post(f"{IG}/{uid}/media", params={"image_url": f"{base}/{img}", "is_carousel_item": "true", "access_token": tok}, timeout=60)
+        for k in range(3):                     # 画像の読み込みに失敗することがあるので、間をあけて3回まで試す
+            r = requests.post(f"{IG}/{uid}/media", params={"image_url": f"{base}/{img}", "is_carousel_item": "true", "access_token": tok}, timeout=60)
+            if r.status_code < 400: break
+            print(f"画像の登録に失敗（{img}、{k+1}回目）:", r.status_code, r.text[:400])   # Instagramが返した理由をログに出す
+            time.sleep(20)
         r.raise_for_status(); children.append(r.json()["id"])
     for c in children: _wait(c, tok)
     r = requests.post(f"{IG}/{uid}/media", params={"media_type": "CAROUSEL", "children": ",".join(children), "caption": caption, "access_token": tok}, timeout=60)
