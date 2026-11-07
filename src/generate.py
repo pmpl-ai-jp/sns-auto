@@ -33,6 +33,39 @@ def history(n=40):
     xs = [p for _, p in iter_posts() if p.get("idea")]
     return [p["idea"] for p in xs[-n:]]
 
+def _grams(t, n=3):
+    t = re.sub(r"[\s・、。！？!?「」『』（）()\n]", "", t or "")
+    return {t[i:i + n] for i in range(len(t) - n + 1)}
+
+def similarity(a, b):
+    """2つの文章の言葉の重なり（0〜1）。文字3つ組の共通部分で測る"""
+    A, B = _grams(a), _grams(b)
+    return len(A & B) / max(1, min(len(A), len(B)))
+
+def recent_texts(kind, n=20):
+    """直近に作った同じ媒体の投稿の本文（似すぎを防ぐため）。却下された投稿は含めない"""
+    from .common import iter_posts
+    xs = [p for _, p in iter_posts() if p.get("kind") == kind and p.get("status") in ("approved", "published")]
+    xs = sorted(xs, key=lambda p: p["created"])[-n:]
+    return [(p.get("text") or p.get("caption", "")) for p in xs]
+
+def recent_openings(kind, n=20):
+    """直近の投稿の1行目（書く役に「同じ場面・主張は避ける」と伝えるため）"""
+    return [t.strip().splitlines()[0][:60] for t in recent_texts(kind, n) if t.strip()]
+
+def too_similar(text, kind):
+    """過去の投稿とほぼ同じ文章になっていないか。同じ日の分は少し厳しくする"""
+    from .common import iter_posts
+    today = f"{now():%Y%m%d}"
+    for _, p in iter_posts():
+        if p.get("kind") != kind or p.get("status") not in ("approved", "published"): continue
+        old = p.get("text") or p.get("caption", "")
+        th = 0.45 if p["id"].startswith(today) else 0.55   # ほぼ同じ文章だけ止める
+        v = similarity(text, old)
+        if v >= th:
+            return [f"過去の投稿「{old.strip().splitlines()[0][:25]}」とほぼ同じ文章になっている（重なり{v:.2f}）。場面・主張・言い回しを変えて、別の切り口で書き直す"]
+    return []
+
 def teaser():
     """直近に公開した投稿の最後のスライドにある「次回予告」（題名と本文）を取り出す。
     次の投稿はこの約束を果たす内容にする"""
@@ -251,7 +284,9 @@ def write(kind, stage, idea, nxt=None):
     """執筆係"""
     extra = f"\n最後のスライド(cta)の予告はこれにする（変えない）: {nxt}" if nxt else ""
     if kind == "threads":
-        return base(stage, idea) + examples() + extra + "\nThreads用の投稿を1つ。「オフィスあるある」の形で書く。1行目は、読んだ人が「あるある」と思う具体的な場面にする（例:「ご確認ください」だけのメール）。続けて、なぜ困るかを1〜2文、直し方のコツを2〜3点（「・」の箇条書き）を示し、最後は言い切りの一文で締める（質問や問いかけで終えない。例:「結論から言うだけで、会議は短くなります。」）。150〜300字。短い文で、会話するような口調。箇条書きは「・」で項目だけを並べ、例や説明は箇条書きの中に入れず、箇条書きのあとの文にまとめる。括弧書きの補足は書かない（意味を足したいときは、本文の文にする）。読者への呼びかけを入れる場合は「あなた」にそろえ、「みなさん」「皆さん」は使わない。文末は「？」「?」「でしょうか」「ですか」で終えない。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。「実体験型」の役割のときは、経歴の episodes から場面を1つ選んで書く。episodes にない場面や、細かい状況の作り話は足さない。1行目に「PMとして」「事業会社のSE時代」など、筆者の立場や時期を一言入れる。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
+        op = recent_openings("threads", 20)
+        avoid = ("\n最近の投稿の1行目（これと同じ場面・同じ主張・似た言い回しは使わない。別の場面、別の切り口で書く）:\n- " + "\n- ".join(op)) if op else ""
+        return base(stage, idea) + examples() + extra + avoid + "\nThreads用の投稿を1つ。「オフィスあるある」の形で書く。1行目は、読んだ人が「あるある」と思う具体的な場面にする（例:「ご確認ください」だけのメール）。続けて、なぜ困るかを1〜2文、直し方のコツを2〜3点（「・」の箇条書き）を示し、最後は言い切りの一文で締める（質問や問いかけで終えない。例:「結論から言うだけで、会議は短くなります。」）。150〜300字。短い文で、会話するような口調。箇条書きは「・」で項目だけを並べ、例や説明は箇条書きの中に入れず、箇条書きのあとの文にまとめる。括弧書きの補足は書かない（意味を足したいときは、本文の文にする）。読者への呼びかけを入れる場合は「あなた」にそろえ、「みなさん」「皆さん」は使わない。文末は「？」「?」「でしょうか」「ですか」で終えない。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。「実体験型」の役割のときは、経歴の episodes から場面を1つ選んで書く。episodes にない場面や、細かい状況の作り話は足さない。1行目に「PMとして」「事業会社のSE時代」など、筆者の立場や時期を一言入れる。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
     return base(stage, idea) + examples() + extra + ("""
 Instagramの保存されるカルーセルを作る。読み終えたら行動できるだけの中身を入れる。
 構成（8〜10枚）:
@@ -314,6 +349,7 @@ def make(kind, idx, idea):
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
         if kind == "threads" and not issues: issues = threads_format_issues(out["text"])   # 形の崩れは書き直しで直す
+        if kind == "threads" and not issues: issues = too_similar(out["text"], "threads")   # 過去の投稿・同じ日の投稿と似すぎていたら書き直し
         suggestions = []
         if not issues: issues, suggestions = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
         if not issues: suggestions = list(suggestions) + ai_tone_issues(text)   # AIっぽさは止めずに1回だけ直す
