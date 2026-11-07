@@ -65,6 +65,6 @@
       "body": "月曜から連載「PMとPLの違いを、AIと一緒に整理する5日間」の続き：PLの仕事：現場を動かし、自分で確認する。次回は、依頼文と確認結果の報告文を例で書きます。"
     }
   ],
-  "status": "error",
+  "status": "approved",
   "error": "400 Client Error: Bad Request for url: https://graph.facebook.com/v21.0/17841459969044496/media?image_url=https%3A%2F%2Fraw.githubusercontent.com%2Fpmpl-ai-jp%2Fsns-auto%2Fmain%2Fmedia%2F20261107-instagram-0%2F1.jpg&is_carousel_item=true&access_token=EAAmWxH3oH7MBSwNoBCK1OJZCtN9ARA3VUA7WQdAGssoBmHMmsa47nm087o4J3VSTOpAIMWT3YYdjAARmOuUTKnRQF8aeRSofFxvLi6GyQ1eASRlfg1MwMLXOzzXZAQa9JEES0Njpr3A2zKXTO0zQT9wPsgqScrNZAwUtOaGtDZCRHV6DZATOQxYYpZCdXTG02vRFLmeFAZAAkYJqeVxZB5A8ZCh6cPVVFmNMXynZAORZAarC2YdVb9wD"
 }
