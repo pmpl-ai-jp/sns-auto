@@ -12,6 +12,15 @@ FACTS = load("data/facts.yaml")["facts"] or []
 AFF = [a for a in (load("data/affiliates.yaml")["affiliates"] or []) if a.get("active")]
 FACTS_TEXT = "\n".join(f["text"].format(**f.get("value", {})) for f in FACTS)
 
+def knowledge(stage):
+    """AI仕事術のテーマでは、data/knowledge/ の資料を背景知識として渡す（Threads・Instagram共通。note/ の中は読まない）"""
+    if stage != "ai_work": return ""
+    kd = ROOT / "data/knowledge"
+    docs = [p.read_text(encoding="utf-8") for p in sorted(kd.glob("*.md"))] if kd.exists() else []
+    if not docs: return ""
+    return ("\n- 背景知識（内容の正しさの土台にする。出典名や原文は書かず自分の言葉で書く。"
+            "例文はそのまま使わず別の場面の例に変える。資料内の数字は例であり、実績や統計として書かない）:\n" + "\n".join(docs))
+
 def perf():
     p = ROOT / "data" / "performance.json"
     return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {"stage_score": {}, "top_posts": []}
@@ -272,7 +281,7 @@ BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 def base(stage, idea):
     return BASE.format(persona=S["persona"], stage=T[stage]["name"], idea=idea, ng="、".join(G["ng_words"]),
                        facts=FACTS_TEXT or "（なし）", episodes=PR.get("episodes") or "（なし）",
-                       not_me="、".join(PR.get("not_me") or []), career="／".join((PR.get("profile") or {}).get("career_history") or [])) + style_rules()
+                       not_me="、".join(PR.get("not_me") or []), career="／".join((PR.get("profile") or {}).get("career_history") or [])) + style_rules() + knowledge(stage)
 
 def examples():
     """伸びた投稿を、お手本として執筆係に渡す（文体・構成の参考。内容はコピーしない）"""
