@@ -1,7 +1,7 @@
 """カルーセル画像をPillowで生成（画像生成AIは使わない）
 デザイン: 濃紺ベースの近未来テイスト（グリッド・光のにじみ・シアンのアクセント）"""
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-from .common import ROOT
+from .common import ROOT, load
 from .vendor.phrase import phrases
 import os, math, re
 
@@ -12,6 +12,10 @@ FONT_BOLD = [os.path.join(FONT_DIR, "ZenKakuGothicNew-Bold.ttf"), "/usr/share/fo
 FONT_REG = [os.path.join(FONT_DIR, "ZenKakuGothicNew-Medium.ttf"), "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", "C:/Windows/Fonts/meiryo.ttc",
             "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc"]
 EXTRA_FONTS = []  # テスト用に差し込めるようにしておく
+
+def _brand(key):
+    """画像に入れる文字（左上のラベル・左下のアカウント名）を config/settings.yaml の brand から読む"""
+    return (load("config/settings.yaml").get("brand") or {})[key]
 
 def _font(cands, size):
     for f in EXTRA_FONTS + cands:
@@ -167,12 +171,12 @@ def background(seed):
 def header_footer(im, i, n):
     d = ImageDraw.Draw(im)
     d.rectangle([M, 60, M + 56, 66], fill=CYAN)
-    d.text((M + 72, 44), "PM/PL × AI", font=latin(26, 600), fill=SOFT)
+    d.text((M + 72, 44), _brand("image_label"), font=latin(26, 600), fill=SOFT)
     for k in range(n):                              # 進捗ドット
         x = W - M - (n - k) * 22
         d.ellipse([x, 52, x + 10, 62], fill=CYAN if k == i else (70, 95, 150))
     d.line([(M, H - 104), (W - M, H - 104)], fill=(90, 120, 180), width=1)
-    d.text((M, H - 84), "@pmpl_ai", font=latin(28, 600), fill=SOFT)
+    d.text((M, H - 84), _brand("handle"), font=latin(28, 600), fill=SOFT)
     d.text((W - M - 86, H - 84), f"{i+1:02d}/{n:02d}", font=latin(28, 500), fill=MUTED)
 
 def card(im, box):
@@ -296,7 +300,7 @@ def render_note_header(title, out_path, label="運用ログ"):
     try:
         im = background(0); d = ImageDraw.Draw(im); max_w = W - M * 2
         d.rectangle([M, 70, M + 56, 76], fill=CYAN)
-        d.text((M + 72, 54), "PM/PL × AI", font=latin(28, 600), fill=SOFT)
+        d.text((M + 72, 54), _brand("image_label"), font=latin(28, 600), fill=SOFT)
         tw = mlen(d, label, bold(30)) + 44
         d.rounded_rectangle([M, 140, M + tw, 192], radius=26, outline=CYAN, width=2)
         mtext(d, (M + 22, 148), label, bold(30), CYAN)
@@ -304,7 +308,7 @@ def render_note_header(title, out_path, label="運用ログ"):
         y = 230
         for line in tl:
             mtext(d, (M, y), line, tf, WHITE); y += int(ts * 1.3)
-        d.text((M, H - 80), "@pmpl_ai", font=latin(28, 600), fill=SOFT)
+        d.text((M, H - 80), _brand("handle"), font=latin(28, 600), fill=SOFT)
         im.convert("RGB").save(out_path, quality=92)
     finally:
         W, H = w0, h0

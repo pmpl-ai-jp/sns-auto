@@ -12,14 +12,23 @@ FACTS = load("data/facts.yaml")["facts"] or []
 AFF = [a for a in (load("data/affiliates.yaml")["affiliates"] or []) if a.get("active")]
 FACTS_TEXT = "\n".join(f["text"].format(**f.get("value", {})) for f in FACTS)
 
-def knowledge(stage):
-    """AI仕事術のテーマでは、data/knowledge/ の資料を背景知識として渡す（Threads・Instagram共通。note/ の中は読まない）"""
-    if stage != "ai_work": return ""
+def knowledge_docs():
+    """data/knowledge/ 直下の資料（*.md）。note/ の中（有料noteの元）は読まない"""
     kd = ROOT / "data/knowledge"
-    docs = [p.read_text(encoding="utf-8") for p in sorted(kd.glob("*.md"))] if kd.exists() else []
+    return [p.read_text(encoding="utf-8") for p in sorted(kd.glob("*.md"))] if kd.exists() else []
+
+def chapters():
+    """資料の章の見出し（「## 」で始まる行）。AIの投稿の論点を、資料の中から選ばせるために使う"""
+    return [m for d in knowledge_docs() for m in re.findall(r"^## (.+)$", d, flags=re.M)]
+
+def knowledge(stage):
+    """AIの使い方のテーマは、data/knowledge/ の資料をもとに書く（Threads・Instagram共通）"""
+    if stage != "ai_work": return ""
+    docs = knowledge_docs()
     if not docs: return ""
-    return ("\n- 背景知識（内容の正しさの土台にする。出典名や原文は書かず自分の言葉で書く。"
-            "例文はそのまま使わず別の場面の例に変える。資料内の数字は例であり、実績や統計として書かない）:\n" + "\n".join(docs))
+    return ("\n- ベース資料（このテーマの投稿は、必ずこの資料の内容をもとに書く。資料の中から論点を1つ選び、考え方・✕と○の対比・手順を、自分の言葉で書く。"
+            "資料にない主張や数字は足さない（筆者の経験は、経歴にあるものだけ一言添えてよい）。"
+            "出典名や原文は書かない。例文はそのまま使わず別の場面の例に変える。資料内の数字は例であり、実績や統計として書かない）:\n" + "\n".join(docs))
 
 def perf():
     p = ROOT / "data" / "performance.json"
@@ -109,7 +118,7 @@ def trend():
             print(f"トレンド: {c['date']} の調査結果を使用"); return c["topics"]
     try:
         r = generate_json(f"""日本のSNS（Instagram・Threads・note）で、次の分野について、直近1〜2週間に話題になっていることを調べてください。
-分野: 仕事でのAI活用（ChatGPT・Claude・Copilot等の新機能や使い方）、IT業界のキャリア・転職、SIerと事業会社、プロジェクトマネジメント
+分野: プロジェクトマネジメント（見積り、進捗・課題管理、ベンダー管理、ステークホルダー調整など）、仕事でのAI活用（ChatGPT・Claude・Copilot等の新機能や使い方）、報告・依頼・調整の伝え方
 発信者: {S["persona"]}
 この発信者が自分の経験と結びつけて語れる話題を優先する。噂や真偽が不確かな話は除く。
 JSON: {{"topics": [{{"topic": "1行", "why": "なぜ今話題か1行", "source": "参照したURL"}}]}}（5〜8個）""",
@@ -129,6 +138,7 @@ def research():
     p = perf(); tr = trend()
     return generate_json(f"""次の人物がSNSで発信します。今日のネタ候補を8個出してください。
 人物像: {S["persona"]}
+想定読者: {S["reader"]}
 この人の経歴（年数や順番はここに書かれたものだけを使う。推測で数字を作らない）:
 {json.dumps(PR.get("profile", {}), ensure_ascii=False)}
 今話題になっていること（使えるものだけ使う。無理に入れない）:
@@ -139,6 +149,8 @@ def research():
   → 予告がある場合、8個のうち最初の1個は、その予告に答えるネタにする（stage はそのテーマに合うものを選ぶ）。予告したことを、次の投稿で必ず果たす
 各ネタは「誰の・どんな悩みに・何を持ち帰ってもらうか」が分かる1行にする。
 フォローしたくなる理由を作るため、8個のうち2個は、続きものにできる（シリーズ化できる）ネタにする。
+AIの使い方（stage が ai_work）のネタは、次の資料の中の論点から1つ選んで作る。資料にない話は出さない。資料:
+{chr(10).join(knowledge_docs())}
 テーマ一覧: {json.dumps({k: v["name"] for k, v in T.items()}, ensure_ascii=False)}
 JSON: {{"ideas": [{{"stage": "テーマのキー", "idea": "1行"}}]}}""", 0.9, role="planner")["ideas"]
 
@@ -171,13 +183,16 @@ def plan_series(d):
     tz = teaser()                                   # 直前に公開した投稿の予告（読者への約束）
     stage = req.get("stage") or next_stage(d)
     past = [s["theme"] for s in d["history"]][-10:]
+    kn = ("\nこのテーマの連載は、次の資料の章から主題を1つ選び、資料の内容に沿って各回を組み立てる。資料にない話は入れない。資料:\n"
+          + "\n".join(knowledge_docs())) if stage == "ai_work" else ""
     r = generate_json(f"""次の人物が、Instagramで平日に連載をします。次の連載の計画を立ててください。
 人物像: {S["persona"]}
+想定読者: {S["reader"]}
 経歴（ここにある経験だけを使う）: {json.dumps(PR.get("profile", {}), ensure_ascii=False)}
 語ってよい体験: {PR.get("episodes")}
 テーマの分類: {T[stage]["name"]}
 {"指定されたテーマ: " + req["theme"] if req.get("theme") else "テーマはこの分類の中から、読者が保存したくなるものを1つ選ぶ"}
-過去の連載（同じテーマは避ける）: {past}
+過去の連載（同じテーマは避ける）: {past}{kn}
 直前に公開した投稿の予告: {tz or "なし"}
   → 予告がある場合、指定されたテーマがあってもなくても、第1回はその予告に答える内容にする（読者への約束を守る）。予告の内容が連載のテーマになじまなければ、予告をテーマにした連載にする
 今話題になっていること（使えるなら）: {json.dumps(trend(), ensure_ascii=False)}
@@ -260,12 +275,15 @@ def ai_tone_issues(text):
 BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 テーマ: {stage}
 ネタ: {idea}
+想定読者: {reader}
 ルール:
+- 読者は基本を知っている中級者。初歩の用語説明は省き、現場でそのまま使える判断基準・手順・確認する質問を書く
+- 現在の肩書きは「PM」と書く。「PM/PL」「PMとPL」と並べて書かない。PLは「PLを経てPMになった」のように経歴としてだけ書く（PMとPLの役割の違いがテーマの投稿だけは、両方を使ってよい）
 - 結論から書き、理由を2〜3個に分け、事実と意見を分ける（ロジカルシンキング）
-- 結論は「〜することがある」のようにぼかさず、読者がとる行動で言い切る（例:「移る前に4つ確認する」）。不確かな点は結論ではなく本文で補足する
+- 結論は「〜することがある」のようにぼかさず、読者がとる行動で言い切る（例:「見積りの前提を4つ書き出す」）。不確かな点は結論ではなく本文で補足する
 - 一般論で終わらせず、各ポイントに「具体例」か「すぐ使える質問・チェック項目」を必ず付ける
 - 経歴の年数や順番は次の通り。これ以外の数字や順番を書かない: {career}
-- 自己紹介は1〜2文に短くまとめ（例:「IT業界25年。SIerから事業会社のSEを経て、いまは外資系SIerでPMとPLをしています」）、年数の内訳や括弧書きの補足を並べない
+- 自己紹介は1〜2文に短くまとめ（例:「IT業界25年。SIerから事業会社のSEを経て、いまは外資系SIerでPMをしています」）、年数の内訳や括弧書きの補足を並べない
 - 体験・具体的な手順ベース。煽らない。断定や収益の約束をしない
 - 次の語は、約束や断定の形では使わない: {ng}
   - 「保証しません」「必ずしも〜ではない」のような注意書きでも、機械チェックで止まることがある。迷ったら「確かではない」「限らない」など別の言い方にする
@@ -279,7 +297,7 @@ BASE = """あなたは日本語のSNS発信者です。人物像: {persona}
 """
 
 def base(stage, idea):
-    return BASE.format(persona=S["persona"], stage=T[stage]["name"], idea=idea, ng="、".join(G["ng_words"]),
+    return BASE.format(persona=S["persona"], reader=S["reader"], stage=T[stage]["name"], idea=idea, ng="、".join(G["ng_words"]),
                        facts=FACTS_TEXT or "（なし）", episodes=PR.get("episodes") or "（なし）",
                        not_me="、".join(PR.get("not_me") or []), career="／".join((PR.get("profile") or {}).get("career_history") or [])) + style_rules() + knowledge(stage)
 
@@ -305,9 +323,9 @@ Instagramの保存されるカルーセルを作る。読み終えたら行動�
 (n-1)枚目: まとめのチェックリスト（3〜5項目を「・」で並べる）
 n枚目: 保存とフォローを促す（次に何を発信するか一言）
 文字数: title 16字以内, body 60〜110字。体言止めと短い文を混ぜ、硬い「です・ます」の連続を避ける
-禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のtitleには「誰が・何を」が分かる言葉を入れる（例:「SIerから移る前に4つ確認する」）。
+禁止: 表紙のtitleを「？」で終わらせない（行動で言い切る）。表紙のtitleには「誰が・何を」が分かる言葉を入れる（例:「見積りの前提を4つ書き出す」）。
       最後のスライドのtitleに「NEXT」などの英字ラベルを付けない。最後のスライドのbodyに「保存して」を書かない（保存ボタンはデザイン側で付く）。
-      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（AI仕事術、キャリア、伝え方）に沿った内容にする。最後のスライドのbodyは、titleで予告した中身を具体的に説明する（titleと違う話を書かない）。予告の本文には、次の回で必ず書く内容を1〜2点、具体的に書く（次の回はこの約束を果たす）。
+      最後のスライド(cta)のtitleは「次回:〇〇」の形で、次の投稿で実際に書ける具体的な予告にする。予告は、アカウントの軸（PM実務、AIの使い方、伝え方）に沿った内容にする。最後のスライドのbodyは、titleで予告した中身を具体的に説明する（titleと違う話を書かない）。予告の本文には、次の回で必ず書く内容を1〜2点、具体的に書く（次の回はこの約束を果たす）。
       同じものを指す言葉は全スライドで統一する。社内用語（例:「脱ホスト」）は一般の人にも分かる言葉に言い換える。表紙のbodyに「保存版」「PR」を書かない（ラベルはデザイン側で付く）。
       bodyに「悩み：」「例：」「質問：」のようなラベルを付けない（「たとえば〜」「〜と聞いてみる」など自然な文にする）
 checklist の body は、項目ごとに改行（\n）で区切る
@@ -413,12 +431,12 @@ def threads_format_issues(text):
     return out
 
 THREADS_ROLES = [
-    # 1本目: 経歴の実体験にもとづく型（反応が出た「議事録とレビュー」「SIerと事業会社」の系統）
-    "実体験型。経歴にある実際の経験（事業会社のSE時代のレビュー、ベンダーとのやり取り、計画づくり、障害対応、SIerと事業会社の違いなど）から1つ選び、その場面を1行目に置く。「そのとき何に気づいたか」を短く示し、読者がすぐ使えるコツを2〜3点添える。AIの話は、その経験につながるときだけ入れる",
+    # 1本目: 経歴の実体験にもとづく型（PM実務。反応が出た「議事録とレビュー」の系統）
+    "実体験型。経歴にある実際の経験（レビュー、ベンダーとのやり取り、計画づくり、見積り、進捗・課題管理、障害対応など）から1つ選び、その場面を1行目に置く。「そのとき何に気づいたか」を短く示し、読者がすぐ使えるコツを2〜3点添える。AIの話は、その経験につながるときだけ入れる",
     # 2本目: 一般的なあるある（共感）
     "ロジカルシンキング・伝え方のオフィスあるある（会議、報告、メール、依頼など）。よくある失敗の場面から入り、直し方を短く示す。1行目に筆者の立場（PMとして見てきた、など）を一言添える",
-    # 3本目: キャリアの実体験型
-    "キャリアの実体験型。SIerと事業会社、受注側と発注側の両方を経験した立場から、「入る前に知りたかったこと」を1つ取り上げる。経歴にある事実だけを使い、確認するとよいことを2〜3点示す",
+    # 3本目: AIの使い方（ナレッジ資料ベース）。PMの仕事の場面に置き換える
+    "AIの使い方（資料ベース）。資料の論点を1つ選び、PMの仕事の場面（見積り、議事録、進捗報告、ベンダーへの依頼など）に置き換えて示す。「やりがちな指示や使い方」から入り、直し方を2〜3点示す",
     # 4本目: AI活用のあるある（実体験を一言添える）
     "AI活用のあるある。仕事でAIを使う人が「自分もそうだ」と思う場面から入り、解決のコツを2〜3点示す。レビューや計画づくりなど、経歴にある経験を一言だけ添える",
 ]
@@ -429,8 +447,14 @@ def threads_ideas(ig):
     その日のInstagramのテーマは、重ならないよう参考として渡すだけ"""
     sl = (ig or {}).get("slides") or []
     avoid = f"（今日のInstagramは「{sl[0]['title']}」。同じ内容の言い換えにはしない）" if sl else ""
-    stages = ["career_exp", "logic", "career_exp", "ai_work"]
-    return [{"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}"} for k, r in enumerate(THREADS_ROLES)]
+    stages = ["pm_work", "logic", "ai_work", "ai_work"]
+    ch = chapters(); pick = random.sample(ch, 2) if len(ch) >= 2 else []   # AIの2本は、別々の章から論点を選ばせる
+    out, n = [], 0
+    for k, r in enumerate(THREADS_ROLES):
+        hint = ""
+        if stages[k] == "ai_work" and n < len(pick): hint = f"。資料の「{pick[n]}」から論点を選ぶ"; n += 1
+        out.append({"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}{hint}"})
+    return out
 
 def main():
     if killed(): print("KILL_SWITCH ON: skip"); return
@@ -438,7 +462,7 @@ def main():
     try:
         w = weights(); ideas = research()
         ov = (os.environ.get("IDEA_OVERRIDE") or "").strip()      # 手動実行でネタを指定したとき
-        if ov: ideas = [{"stage": "career_exp", "idea": ov}] + ideas
+        if ov: ideas = [{"stage": "pm_work", "idea": ov}] + ideas
         ideas = [i for i in ideas if i.get("stage") in T and w.get(i["stage"], 0) > 0]
         first = [True]
         def pick():
