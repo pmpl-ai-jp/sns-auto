@@ -10,8 +10,8 @@ def set_secret(name, value):
     subprocess.run(["gh", "secret", "set", name, "--body", value], check=True)
 
 TARGETS = [
-    # IG_TOKEN はシステムユーザートークン（無期限）なので更新しない
     ("THREADS_TOKEN", "https://graph.threads.net/refresh_access_token", "th_refresh_token"),
+    # IG_TOKEN はシステムユーザートークン（無期限）なので更新しない
 ]
 
 if __name__ == "__main__":
@@ -19,4 +19,7 @@ if __name__ == "__main__":
         tok = os.environ.get(name)
         if not tok:
             print(f"{name}: 未登録のためスキップ"); continue
-        set_secret(name, refresh(url, grant, tok)); print(f"{name}: 更新しました")
+        try:
+            set_secret(name, refresh(url, grant, tok)); print(f"{name}: 更新しました")
+        except Exception as e:                # 片方が失敗しても、もう片方は更新する
+            print(f"{name}: 更新に失敗:", str(e)[:300])

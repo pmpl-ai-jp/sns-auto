@@ -64,10 +64,14 @@ def main():
         for _, post in iter_posts():
             if post.get("status") != "published" or datetime.datetime.fromisoformat(post["published_at"]) < cutoff: continue
             body = post.get("text") or post.get("caption", "")
-            if post["kind"] == "threads":
-                items = [c for c in threads_replies(post["published_id"], os.environ["THREADS_TOKEN"]) if not c.get("is_reply_owned_by_me")]
-            else:
-                items = ig_comments(post["published_id"], os.environ["IG_TOKEN"])
+            try:                                       # 削除した投稿などで読めないときは、その投稿を飛ばして次へ
+                if post["kind"] == "threads":
+                    items = [c for c in threads_replies(post["published_id"], os.environ["THREADS_TOKEN"]) if not c.get("is_reply_owned_by_me")]
+                else:
+                    items = ig_comments(post["published_id"], os.environ["IG_TOKEN"])
+            except requests.HTTPError as e:
+                print("コメントを読めないため飛ばした:", post["id"], post.get("published_id"), e.response.text[:300] if e.response is not None else e)
+                continue
             for c in items:
                 if n >= setting("reply_per_day"): break
                 if c["id"] in st["ids"]: continue
