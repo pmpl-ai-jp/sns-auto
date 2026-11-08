@@ -1,40 +1,40 @@
 {
-  "date": "2026-11-02",
+  "date": "2026-11-09",
   "topics": [
     {
-      "topic": "ChatGPTのWork/Codex利用枠が2倍に、ClaudeはCarPlay対応。AI各社の更新を業務でどう取捨選択するか",
-      "why": "10月29日にOpenAIとAnthropicが更新を相次いで発表し、直近で最も新しい業務AIニュースの一つ。",
-      "source": "https://news.livedoor.com/topics/detail/32695720/"
+      "topic": "ChatGPTがChatとWorkタブを統合し、旧デスクトップ版ChatGPT Classicは2027年1月30日に終了。AIの「相談相手」から「仕事を進める担当」への移行を、PMの業務分担の見直しと重ねて語れる",
+      "why": "11/2〜11/5に窓の杜などが報じ、仕事でのChatGPTの使い方が切り替わる節目として話題になっている",
+      "source": "https://forest.watch.impress.co.jp/category/genai/"
     },
     {
-      "topic": "チャットで質問する段階から、AIに作業を任せる段階へ。ChatGPT Work・Claude Cowork・Copilot Coworkの違い",
-      "why": "各社が「任せる型」の機能を並べて出し、利用上限や対応プランの比較記事が増えている。",
-      "source": "https://ai-revolution.co.jp/media/what-is-chatgpt-work/"
+      "topic": "Claude MaxプランがUltra/Maxに改称され、5時間ごとの利用制限が撤廃。AIの利用枠をチームでどう設計し、コストを見積もるか(ツール費用の見積りと予算管理)",
+      "why": "11/4の発表で、Claudeの料金・利用制限の話題が国内AIニュースで広がっている",
+      "source": "https://ai-garage.jp/news/"
     },
     {
-      "topic": "Microsoft 365 Copilotでの使い分け。GPT系とClaude系を作業に合わせて選ぶ",
-      "why": "10月中旬にCopilotや各AIの比較検証が出て、既存の業務環境に合わせた選び方が関心を集めている。",
-      "source": "https://miralab.co.jp/media/chatgpt_gemini_claude_copilot/"
+      "topic": "Notionが、ChatGPTとClaudeなど複数のAIに「ひとつの共有の脳」を持たせる機能を追加。プロジェクトの決定事項・課題・経緯を一箇所に集め、AIにも人にも同じ前提で動いてもらう進め方",
+      "why": "11/5にX上で紹介され、複数AIの併用でコンテキストが分断される悩みへの解決策として注目されている",
+      "source": "https://hashout.jp/ai/13939/"
     },
     {
-      "topic": "AI時代のIT転職。秋の採用期に、何を武器にどこへ動くか",
-      "why": "11月7日に「AI時代のキャリア選択」を掲げる転職フェアが開かれ、10〜11月は転職の動きが増える時期でもある。",
-      "source": "https://prtimes.jp/main/html/rd/p/000000998.000010591.html"
+      "topic": "Anthropicが旧世代Claudeモデルにも見えない電子透かしを適用(11/3〜)。AI生成の文章や成果物を顧客・ベンダー間でやり取りするときの確認ルールと責任分界",
+      "why": "11/3から適用が始まり、AIで作った資料や納品物の扱いを契約・運用で決める必要が出てきたため",
+      "source": "https://www.notebookcheck.net/Claude-now-watermarks-text-from-older-models-with-no-opt-out.1444769.0.html"
     },
     {
-      "topic": "エンジニア採用は「数」から「質」へ。企業が見極める人材像と、転職者が示すべき経験",
-      "why": "秋から年末の採用シーズンを前に、求人数が落ち着き、採用側が必要な人材を絞り込む傾向を解説する記事が出ている。",
-      "source": "https://topics.type.jp/type-engineer/engineer-job-market-trend/"
+      "topic": "Claude Enterpriseにセキュリティセンターと推論フックが追加。外資系SIerや発注側の現場で必要になるAI利用のガバナンスと、顧客データの扱いを承認する観点",
+      "why": "11/5の公式発表で、企業利用の管理機能が強化されたと報じられている",
+      "source": "https://tech-noisy.com/2026/11/07/ai-daily-news-2026-11-06/"
     },
     {
-      "topic": "SIerと事業会社を行き来するキャリア。内製化時代に両方を知る人の価値",
-      "why": "AIで内製化が進むなか、発注側と受注側の経験を往復する人材が注目されている。ただし、この記事は直近1〜2週間のものではなく、継続中のテーマとして扱う。",
-      "source": "https://qiita.com/papi_tokei/items/0813eee16368ebe76c2b"
+      "topic": "AI駆動開発が主流になる中で、PMの役割が「進行管理」から「判断」へ移る議論。リスク検知はAIが担い、PMは収束させる判断をする。見積りや課題管理は、AIの出力をどう評価するかという視点で語れる",
+      "why": "2026年版のPM論としてnoteで読まれている記事。ただし公開は直近1〜2週間ではなく、継続的なテーマ",
+      "source": "https://note.com/kaizentechagent/n/ndb4bda526cf0"
     },
     {
-      "topic": "AIとの共同作業をプロジェクトとして管理する。目的・入力・完成条件・承認者を決めるPM的な型",
-      "why": "AI活用を「個人の工夫」から「管理できる仕事」に変える手法の記事が、直近で公開されている。",
-      "source": "https://qiita.com/satouyoshiaki/items/472f2be81b0cbf4f4508"
+      "topic": "報連相は「報告・連絡・相談を区別し、結論から短く、相談には選択肢を添える」。受注側と発注側の両方で見てきた、判断を求める依頼の伝え方に結びつけやすい",
+      "why": "報連相の型を解説する記事が継続的に読まれており、AIで下書きを作る場面でも「結論先出し」の型が改めて問われている。直近1〜2週間に限った話題ではない",
+      "source": "https://line-works.com/roger/column/workplace-reporting-basics/"
     }
   ]
 }

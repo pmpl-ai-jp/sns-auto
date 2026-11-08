@@ -10,5 +10,13 @@
   "topic": "仕事術",
   "status": "published",
   "published_id": "17917416747539664",
-  "published_at": "2026-11-08T12:07:54.658728+09:00"
+  "published_at": "2026-11-08T12:07:54.658728+09:00",
+  "metrics": {
+    "views": 5,
+    "likes": 0,
+    "replies": 0,
+    "reposts": 0,
+    "quotes": 0
+  },
+  "score": 0.0
 }
