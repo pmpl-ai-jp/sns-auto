@@ -42,7 +42,7 @@ warmup:
   reply_per_day: 10      # 通常は reply_per_day
   pr: false              # 期間中はPR投稿を一切出さない
 
-# InstagramのAPIの送り先。統合ログイン（システムユーザートークン）は graph.facebook.com を使う
+# InstagramのAPIの送り先。システムユーザートークン（Facebookページ経由）は graph.facebook.com を使う
 ig_graph_base: "https://graph.facebook.com/v21.0"
 
 # トレンド調査（Claudeのウェブ検索。1,000回で$10）
