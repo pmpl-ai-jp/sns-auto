@@ -6,8 +6,8 @@ S = load("config/settings.yaml")
 TH = "https://graph.threads.net/v1.0"
 IG = __import__("src.common", fromlist=["load"]).load("config/settings.yaml")["ig_graph_base"]
 from .common import in_warmup
-SLOTS = {"threads": [7, 12, 19, 22], "instagram": [20]}  # Threadsは1日4本
-if in_warmup(): SLOTS["threads"] = [7, 12, 19, 22]  # 立ち上げ期間中は1日4回  # JSTの投稿時刻
+SLOTS = {"threads": [7, 12, 18, 22], "instagram": [20]}  # Threadsは1日4本
+if in_warmup(): SLOTS["threads"] = [7, 12, 18, 22]  # 立ち上げ期間中は1日4回  # JSTの投稿時刻
 
 def post_threads(text, topic=""):
     """Threadsに投稿する。トピックを付けて失敗したときは、付けずにもう一度試す"""
