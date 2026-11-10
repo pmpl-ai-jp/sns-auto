@@ -1,7 +1,7 @@
 # 投稿スケジュール（JST）
 timezone: Asia/Tokyo
 threads_per_day: 4   # Threadsは1日4本（8・12・19・22時）
-instagram_per_day: 1
+instagram_per_day: 0
 # 公開リポジトリのraw URL（Instagram画像の公開URLに使う）
 # 例: https://raw.githubusercontent.com/<user>/<repo>/main
 public_base_url: "https://raw.githubusercontent.com/pmpl-ai-jp/sns-auto/main"
