@@ -1,40 +1,45 @@
 {
-  "date": "2026-11-09",
+  "date": "2026-11-16",
   "topics": [
     {
-      "topic": "ChatGPTがChatとWorkタブを統合し、旧デスクトップ版ChatGPT Classicは2027年1月30日に終了。AIの「相談相手」から「仕事を進める担当」への移行を、PMの業務分担の見直しと重ねて語れる",
-      "why": "11/2〜11/5に窓の杜などが報じ、仕事でのChatGPTの使い方が切り替わる節目として話題になっている",
-      "source": "https://forest.watch.impress.co.jp/category/genai/"
+      "topic": "Claudeに Whiteboards・Sheets・Data が加わり、議論・集計・データ照会を1つのAIで完結できる流れ。PMの課題管理や会議整理に結びつけて語れる",
+      "why": "11/9〜15の週にAnthropicが全有料プランへ提供開始を発表し、直近1週間のAIニュースの中心になっている（SNS上の反応ではなくニュースまとめ記事での確認）。",
+      "source": "https://tech-noisy.com/2026/11/16/ai-weekly-news-2026-11-09-2026-11-15/"
     },
     {
-      "topic": "Claude MaxプランがUltra/Maxに改称され、5時間ごとの利用制限が撤廃。AIの利用枠をチームでどう設計し、コストを見積もるか(ツール費用の見積りと予算管理)",
-      "why": "11/4の発表で、Claudeの料金・利用制限の話題が国内AIニュースで広がっている",
-      "source": "https://ai-garage.jp/news/"
+      "topic": "Microsoft Copilotの再設計（Home・Code・Autopilot）と、Copilot内でClaudeやGPTを選べること。「会社ではChatGPTやClaudeを直接使えない」人に向けて、PMの目線で使い分けを語れる",
+      "why": "仕事向けCopilotの刷新と、Word・Excel・PowerPointのエージェントモードが、会社員のAI活用の主な話題になっている。ただし発表は9月下旬で、直近2週間の出来事ではない。",
+      "source": "https://thebridge.jp/2026/09/microsoft-copilot-home-code-autopilot"
     },
     {
-      "topic": "Notionが、ChatGPTとClaudeなど複数のAIに「ひとつの共有の脳」を持たせる機能を追加。プロジェクトの決定事項・課題・経緯を一箇所に集め、AIにも人にも同じ前提で動いてもらう進め方",
-      "why": "11/5にX上で紹介され、複数AIの併用でコンテキストが分断される悩みへの解決策として注目されている",
-      "source": "https://hashout.jp/ai/13939/"
+      "topic": "生成AIを議事録・週次報告・リスク洗い出し・WBSのたたき台に使う方法。「AIは下書き、判断と調整はPM」という線引きを、受注側・発注側の両方を知る立場で整理できる",
+      "why": "PM向けのAI活用解説が複数のメディアで継続的に出ている。PMの仕事を、作業から意思決定や合意形成へ移す流れが論点になっている。",
+      "source": "https://pm-laboratory.com/m260513/"
     },
     {
-      "topic": "Anthropicが旧世代Claudeモデルにも見えない電子透かしを適用(11/3〜)。AI生成の文章や成果物を顧客・ベンダー間でやり取りするときの確認ルールと責任分界",
-      "why": "11/3から適用が始まり、AIで作った資料や納品物の扱いを契約・運用で決める必要が出てきたため",
-      "source": "https://www.notebookcheck.net/Claude-now-watermarks-text-from-older-models-with-no-opt-out.1444769.0.html"
+      "topic": "AIで進捗報告を作る場合も、「決定事項・担当・期限・懸念」を分けて書く。報告は結論から、AIは判断が必要な論点と選択肢を早く見せるために使う",
+      "why": "AIで進捗報告や議事録を作る話が、判断材料の整理や意思決定支援へ広がっている。",
+      "source": "https://www.c-sidepro.com/blog/column/6136/"
     },
     {
-      "topic": "Claude Enterpriseにセキュリティセンターと推論フックが追加。外資系SIerや発注側の現場で必要になるAI利用のガバナンスと、顧客データの扱いを承認する観点",
-      "why": "11/5の公式発表で、企業利用の管理機能が強化されたと報じられている",
-      "source": "https://tech-noisy.com/2026/11/07/ai-daily-news-2026-11-06/"
+      "topic": "報連相は、結論を1行で伝え、判断してほしい点を絞り、「Aで進めてよいですか」と案を添えて聞く。忙しい上司やステークホルダーへの依頼・調整の型として語れる",
+      "why": "報連相の伝え方は季節を問わず検索や発信の多いテーマ。新人や若手向けの記事が続いているが、直近2週間に限った話題とは確認できていない。",
+      "source": "https://www.mfloow.com/blog/hourensou_outdated"
     },
     {
-      "topic": "AI駆動開発が主流になる中で、PMの役割が「進行管理」から「判断」へ移る議論。リスク検知はAIが担い、PMは収束させる判断をする。見積りや課題管理は、AIの出力をどう評価するかという視点で語れる",
-      "why": "2026年版のPM論としてnoteで読まれている記事。ただし公開は直近1〜2週間ではなく、継続的なテーマ",
-      "source": "https://note.com/kaizentechagent/n/ndb4bda526cf0"
-    },
-    {
-      "topic": "報連相は「報告・連絡・相談を区別し、結論から短く、相談には選択肢を添える」。受注側と発注側の両方で見てきた、判断を求める依頼の伝え方に結びつけやすい",
-      "why": "報連相の型を解説する記事が継続的に読まれており、AIで下書きを作る場面でも「結論先出し」の型が改めて問われている。直近1〜2週間に限った話題ではない",
+      "topic": "悪い情報ほど早く短く一報する。状況が変わった時点で結論から伝える。PMが報告を受ける側と上げる側の両方を経験している点から語れる",
+      "why": "「結果がそろうまで待つと対応の選択肢が減る」という報連相の考え方が、解説記事で繰り返し取り上げられている。",
       "source": "https://line-works.com/roger/column/workplace-reporting-basics/"
+    },
+    {
+      "topic": "PMのフリーランス案件では、資格より予算や人数など規模を数字で書いた職務経歴が見られる。経験をどう言語化するかというPMのキャリア論として語れる",
+      "why": "約2週間前に公開された、実案件79件の分析記事が話題の材料になっている。",
+      "source": "https://bizdev-tech.jp/engineer-freelance-pm-rate-strategy-2026/"
+    },
+    {
+      "topic": "IPAのプロジェクトマネージャ試験は、2026年度（実施は2027年1〜3月）をもって現行方式が最後になる。PM実務の学び方や試験の位置づけを語れる",
+      "why": "CBT申込（1/27〜2/27）を前に、試験準備の記事がnoteに出ている。",
+      "source": "https://note.com/sikaku_rakutoru/n/n5fb342dce31d?hl=en"
     }
   ]
 }
