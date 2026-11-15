@@ -1,6 +1,7 @@
 # 投稿スケジュール（JST）
 timezone: Asia/Tokyo
 threads_per_day: 4   # Threadsは1日4本（8・12・19・22時）
+threads_topic: "AI活用"   # Threadsのトピックタグ。すべての投稿にこれを付ける（空にすると、AIが毎回決める）
 instagram_per_day: 0
 # 公開リポジトリのraw URL（Instagram画像の公開URLに使う）
 # 例: https://raw.githubusercontent.com/<user>/<repo>/main
@@ -41,6 +42,9 @@ monthly_budget_jpy: 2500
 budget_stop: false   # true にすると、上限で自動停止する。false は記録だけ（noteの運用ログ用）
 # 自動返信の上限
 reply_per_day: 30
+# 分析（テーマごとの成績）はThreadsの公開済み投稿だけで集計する。
+# 投稿数がこの数に届かないテーマは、成績を配分に使わない（少ない投稿の偶然の差で、配分が動かないようにする）
+analysis_min_posts: 10
 
 # 立ち上げ期間（最初の公開から自動で数える）。期間中は安全側の設定で動き、終わると自動で通常設定に戻る
 warmup:

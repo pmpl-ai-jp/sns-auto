@@ -1,7 +1,7 @@
 """分析係: 公開済み投稿の反応を取得し、テーマごとの成績を data/performance.json に書く"""
 import os, json, requests
 from collections import defaultdict
-from .common import iter_posts, save_post, ROOT, now
+from .common import iter_posts, save_post, ROOT, now, load
 TH = "https://graph.threads.net/v1.0"; IG = __import__("src.common", fromlist=["load"]).load("config/settings.yaml")["ig_graph_base"]
 
 def threads_metrics(mid):
@@ -26,15 +26,16 @@ def score(kind, m):
 def main():
     agg = defaultdict(list); top = []
     for _, p in iter_posts():
-        if p.get("status") != "published": continue
+        if p.get("status") != "published" or p.get("kind") != "threads": continue   # Threadsだけで集計する
         try:
-            m = threads_metrics(p["published_id"]) if p["kind"] == "threads" else ig_metrics(p["published_id"])
+            m = threads_metrics(p["published_id"])
         except Exception as e:
             print("skip", p["id"], e); continue
         p["metrics"] = m; p["score"] = score(p["kind"], m); save_post(p)
         agg[p["stage"]].append(p["score"])
         top.append((p["score"], p.get("text") or p.get("caption", "")))
-    perf = {k: sum(v) / len(v) for k, v in agg.items()}
+    min_posts = int(load("config/settings.yaml").get("analysis_min_posts", 10))   # 投稿数が少ないテーマは、配分に使わない
+    perf = {k: sum(v) / len(v) for k, v in agg.items() if len(v) >= min_posts}
     top = [t for _, t in sorted(top, reverse=True)[:5]]
     (ROOT / "data" / "performance.json").write_text(json.dumps(
         {"updated": now().isoformat(), "stage_score": perf, "top_posts": top}, ensure_ascii=False, indent=2), encoding="utf-8")

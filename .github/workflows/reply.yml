@@ -1,6 +1,6 @@
 name: reply
 on:
-  schedule: [{cron: '30 0,4,8,12 * * *'}]   # 9:30 / 13:30 / 17:30 / 21:30 JST
+  schedule: [{cron: '5 23,4,10,14 * * *'}]   # 8:05 / 13:05 / 19:05 / 23:05 JST（Threadsの投稿の約1時間後）
   workflow_dispatch:
 permissions: { contents: write }
 concurrency: repo-write
