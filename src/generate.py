@@ -437,10 +437,17 @@ THREADS_ROLES = [
     "ロジカルシンキング・伝え方のオフィスあるある（会議、報告、メール、依頼など）。よくある失敗の場面から入り、直し方を短く示す。筆者の立場や肩書き（「PMとして」など）は書かない",
     # 3本目: AIの使い方（ナレッジ資料ベース）。PMの仕事の場面に置き換える
     "AIの使い方（資料ベース）。資料の論点を1つ選び、仕事の場面（見積り、議事録、進捗報告、依頼メールなど）に置き換えて示す。「やりがちな指示や使い方」から入り、直し方を1〜2点示す。そのあとに、そのまま貼って使える指示文を「」で1つ付ける（仕事の場面の指示文。数字や結果は書かない）",
-    # 4本目: AI活用のあるある（実体験を一言添える）
-    "AI活用のあるある。仕事でAIを使う人が「自分もそうだ」と思う場面から入り、解決のコツを1〜2点示す。直前の内容に自然につながるときだけ、締めの前に、その内容に関する筆者の本音を一言入れる（楽しみ、迷い、決意など。つながらないなら入れない）。「！」を使ってよい。今日あったことや今日の予定は書かない",
+    # 4本目: AI超入門（初心者向けの解説。用語集から1つ）
+    "AI超入門。AIを使い始めたばかりの人に、基本を1つだけ、やさしく説明する。下の「今回の用語」の内容だけをもとに、(1)意味を一文で、(2)仕事の身近な例、(3)今日できることを1つ、の順で書く。専門用語は使わず、使うときはカッコで言い換える。用語の内容にない説明や数字は足さない。筆者の経験や本音は足さない。シリーズ名や番号は付けない。「！」を使ってよい",
 ]
 
+
+def basics():
+    """AI超入門の用語集（data/basics/ai_basics.md）。「## 用語」ごとの本文を、{用語: 本文}で返す"""
+    f = ROOT / "data/basics/ai_basics.md"
+    if not f.exists(): return {}
+    parts = re.split(r"^## (.+)$", f.read_text(encoding="utf-8"), flags=re.M)
+    return {parts[i].strip(): parts[i + 1].strip() for i in range(1, len(parts) - 1, 2)}
 
 def threads_ideas(ig):
     """Threadsの4本のネタ。Instagramには誘導せず、1本で完結する「あるある」形式にする。
@@ -448,11 +455,15 @@ def threads_ideas(ig):
     sl = (ig or {}).get("slides") or []
     avoid = f"（今日のInstagramは「{sl[0]['title']}」。同じ内容の言い換えにはしない）" if sl else ""
     stages = ["pm_work", "logic", "ai_work", "ai_work"]
-    ch = chapters(); pick = random.sample(ch, 2) if len(ch) >= 2 else []   # AIの2本は、別々の章から論点を選ばせる
+    ch = chapters(); pick = random.sample(ch, 1) if ch else []   # 3本目は、資料の章から論点を選ばせる
     out, n = [], 0
     for k, r in enumerate(THREADS_ROLES):
         hint = ""
-        if stages[k] == "ai_work" and n < len(pick): hint = f"。資料の「{pick[n]}」から論点を選ぶ"; n += 1
+        if k == 2 and n < len(pick): hint = f"。資料の「{pick[n]}」から論点を選ぶ"; n += 1
+        if k == 3:                                                   # 4本目は、最近使っていない用語を1つ渡す
+            bs = basics(); used = " ".join(history(40))
+            fresh = [t for t in bs if f"今回の用語: {t}" not in used] or list(bs)
+            if fresh: t = random.choice(fresh); hint = f"。今回の用語: {t}\n{bs[t]}"
         out.append({"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}{hint}"})
     return out
 
