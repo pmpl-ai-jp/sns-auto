@@ -1,6 +1,6 @@
 # 投稿スケジュール（JST）
 timezone: Asia/Tokyo
-threads_per_day: 4   # Threadsは1日4本（8・12・19・22時）
+threads_per_day: 4   # Threadsは1日4本（10・12・19・22時）
 threads_topic: "AI活用"   # Threadsのトピックタグ。すべての投稿にこれを付ける（空にすると、AIが毎回決める）
 instagram_per_day: 0
 # 公開リポジトリのraw URL（Instagram画像の公開URLに使う）
