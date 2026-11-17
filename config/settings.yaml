@@ -21,8 +21,12 @@ brand:
 
 # 全自動モード: チェックを通った投稿はすべて自動公開。通らない投稿は破棄（人の確認待ちにしない）
 auto_mode: true
+# コスト削減（2026-11-17）。true に戻すと元の動きに戻る
+research_enabled: false   # 毎朝のネタ出し（Sonnet）。Threads4本は固定の役割で作るので候補は使われない。トレンド調査もここの中だけで使われる
+polish_rewrite: false     # 公開を止めない程度の改善点だけで、全文を書き直す「磨き直し」（書き手の費用が最大2倍になる）
 models:
   writer: claude-sonnet-5-5      # 執筆（品質の要。ここだけ上位モデル）
+  writer_basic: claude-haiku-5-5 # Threads4本目「AI超入門」の執筆（型が固定で材料も用語集だけ。単価はSonnetの20分の1）
   light: claude-haiku-5-5        # リサーチ・企画・返信
   checker: claude-haiku-5-5      # 論理チェック（書いたモデルとは別のモデルにする）
   planner: claude-sonnet-5-5     # トレンド調査・ネタ出し・運用ログ（品質を上げるため上位モデル）

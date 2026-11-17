@@ -372,7 +372,7 @@ def make(kind, idx, idea):
     issues = ["未生成"]
     tries = G["max_rewrite"] + (2 if kind == "threads" else 1)   # Threadsは書き直しを1回多くする
     for attempt in range(tries):
-        out = generate_json(prompt, role="writer")
+        out = generate_json(prompt, role=idea.get("writer", "writer"))
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
         if kind == "threads" and not issues: issues = threads_format_issues(out["text"])   # 形の崩れは書き直しで直す
@@ -381,7 +381,7 @@ def make(kind, idx, idea):
         if not issues: issues, suggestions = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
         if not issues: suggestions = list(suggestions) + ai_tone_issues(text)   # AIっぽさは止めずに1回だけ直す
         if not issues:
-            if suggestions and attempt == 0:   # 重大な問題はないが改善点がある → 1回だけ磨く（失敗扱いにはしない）
+            if suggestions and attempt == 0 and S.get("polish_rewrite", True):   # 重大な問題はないが改善点がある → 1回だけ磨く（失敗扱いにはしない）
                 prompt += f"\n内容は良いので、次の改善点だけ反映して全体を書き直してください: {suggestions}"
                 continue
             break
@@ -464,14 +464,16 @@ def threads_ideas(ig):
             bs = basics(); used = " ".join(history(40))
             fresh = [t for t in bs if f"今回の用語: {t}" not in used] or list(bs)
             if fresh: t = random.choice(fresh); hint = f"。今回の用語: {t}\n{bs[t]}"
-        out.append({"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}{hint}"})
+        it = {"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}{hint}"}
+        if k == 3 and "writer_basic" in S["models"]: it["writer"] = "writer_basic"   # 4本目（AI超入門）は軽いモデルで書く
+        out.append(it)
     return out
 
 def main():
     if killed(): print("KILL_SWITCH ON: skip"); return
     print("立ち上げ期間中" if in_warmup() else "通常運用")
     try:
-        w = weights(); ideas = research()
+        w = weights(); ideas = research() if S.get("research_enabled", True) else []   # 止めていても、Threads4本は固定の役割で作る
         ov = (os.environ.get("IDEA_OVERRIDE") or "").strip()      # 手動実行でネタを指定したとき
         if ov: ideas = [{"stage": "pm_work", "idea": ov}] + ideas
         ideas = [i for i in ideas if i.get("stage") in T and w.get(i["stage"], 0) > 0]
