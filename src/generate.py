@@ -371,7 +371,9 @@ def make(kind, idx, idea):
     prompt = write(kind, stage, idea["idea"], idea.get("next"))
     issues = ["未生成"]
     tries = G["max_rewrite"] + (2 if kind == "threads" else 1)   # Threadsは書き直しを1回多くする
+    soft = []                                                    # 文体の「軽い指摘」（直せなくても止めない）
     for attempt in range(tries):
+        soft = []
         out = generate_json(prompt, role=idea.get("writer", "writer"))
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
@@ -380,6 +382,11 @@ def make(kind, idx, idea):
         suggestions = []
         if not issues: issues, suggestions = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
         if not issues: suggestions = list(suggestions) + ai_tone_issues(text)   # AIっぽさは止めずに1回だけ直す
+        if not issues and kind == "threads":
+            soft = threads_style_issues(out["text"])             # 文体の軽い指摘。最後の回で残っても、そのまま投稿する
+            if soft and attempt < tries - 1:
+                prompt += f"\n文体のルールに合わない点があります。内容は保ったまま、次の点だけ直してください: {soft}"
+                continue
         if not issues:
             if suggestions and attempt == 0 and S.get("polish_rewrite", True):   # 重大な問題はないが改善点がある → 1回だけ磨く（失敗扱いにはしない）
                 prompt += f"\n内容は良いので、次の改善点だけ反映して全体を書き直してください: {suggestions}"
@@ -389,6 +396,7 @@ def make(kind, idx, idea):
     post = {"id": f"{now():%Y%m%d}-{kind}-{idx}", "kind": kind, "stage": stage, "idea": idea["idea"],
             "created": now().isoformat(), "issues": issues, "affiliate": aff["id"] if aff else None}
     if kind == "threads":
+        if soft: post["style_notes"] = soft                      # 直しきれず、そのまま投稿した文体の指摘（記録だけ）
         post["text"] = apply_pr(out["text"] + ("\n詳しくはプロフィールのリンクから" if aff else ""), bool(aff))
         post["topic"] = (S.get("threads_topic") or out.get("topic") or "").replace("#", "").strip()[:50]
     else:
@@ -428,7 +436,13 @@ def threads_format_issues(text):
         out.append("最後の一文が問いかけ（「？」で終わる質問）になっていない。読者が返信しやすい短い質問で締める")
     if re.search(r"みなさん|皆さん|皆様", text):
         out.append("呼びかけが「あなた」にそろっていない（「みなさん」を使っている）")
-    # 2026-11-18追加：文体ルール（style.yaml）のうち、機械で見つけやすいもの
+    return out
+
+def threads_style_issues(text):
+    """文体ルール（style.yaml）のうち、機械で見つけやすいもの（2026-11-18追加）。
+    「軽い指摘」: 1回だけ書き直させ、それでも残ったら、そのまま投稿する（費用を月5ドル以内に収めるため）"""
+    out = []
+    lines = text.split("\n")
     if re.search(r"(私|僕)[はが].{0,25}(て|んで)きました", text):
         out.append("「私は〜してきました」の経験アピールが入っている。経験の話は書かない")
     if re.search(r"私の見方|個人的には|私は.{0,12}(考え|思)(て|い)", text):
@@ -479,7 +493,7 @@ def threads_ideas(ig):
             fresh = [t for t in bs if f"今回の用語: {t}" not in used] or list(bs)
             if fresh: t = random.choice(fresh); hint = f"。今回の用語: {t}\n{bs[t]}"
         it = {"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}{hint}"}
-        if k == 3 and "writer_basic" in S["models"]: it["writer"] = "writer_basic"   # 4本目（AI超入門）は軽いモデルで書く
+        if k in (1, 3) and "writer_basic" in S["models"]: it["writer"] = "writer_basic"   # 2本目（AIあるある）と4本目（AI超入門）は軽いモデルで書く
         out.append(it)
     return out
 

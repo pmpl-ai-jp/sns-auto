@@ -16,7 +16,7 @@ ng_words:
 number_pattern: "[0-9０-９]+ *(万円|円|%|％|割)"
 pr_label: "【PR】"
 pr_footer: "※本投稿はアフィリエイト広告（PR）を含みます"
-max_rewrite: 2
+max_rewrite: 0   # Threadsは「最初の1回＋書き直し1回」の合計2回まで（2026-11-18に2→0。月5ドル以内にするため）。Instagramは書き直しなし
 # 一人称の体験談らしい表現。profile.yaml の episodes に根拠がなければ要確認に回す
 experience_patterns:
   - "(私|僕|自分|俺)(が|は|も)?.{0,15}(だった|していた|働いていた)"
