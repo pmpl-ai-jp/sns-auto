@@ -307,13 +307,18 @@ def examples():
     return ("\n- 反応の良かった過去の投稿（構成と語り口の参考。内容や数字はコピーしない）:\n" +
             "\n---\n".join(top)) if top else ""
 
-def write(kind, stage, idea, nxt=None):
+def write(kind, stage, idea, nxt=None, fmt=None):
     """執筆係"""
     extra = f"\n最後のスライド(cta)の予告はこれにする（変えない）: {nxt}" if nxt else ""
     if kind == "threads":
         op = recent_openings("threads", 20)
         avoid = ("\n最近の投稿の1行目（これと同じ場面・同じ主張・似た言い回しは使わない。別の場面、別の切り口で書く）:\n- " + "\n- ".join(op)) if op else ""
-        return base(stage, idea) + examples() + extra + avoid + "\nThreads用の投稿を1つ。「日常あるある」の形で書く。1行目は、読んだ人が「あるある」と思う日常の具体的な場面にする（例:「見といて」だけの友だちのLINE）。続けて、なぜ困るかを1文（AIの話は、1〜2文目の「AIの答えも同じ」のような一文でつなぐ。AIなしで成立する投稿は、つながなくてよい）、「こんなときは、〜します」で受けて、直し方のコツを1〜2点（「・」の箇条書き）を示し、最後は、読者が返信しやすい問いかけの一文で締める（場面に合う短い質問を1つ。例:「あなたの連絡は、返事がいるかどうか、一目で分かりますか？」）。80〜160字（そのまま貼れる指示文を付ける役割のときは250字まで）。行数は7行まで。例は付けても1つまでにし、最後の問いかけは必ず付ける。短い文で、会話するような口調。箇条書きは「・」で項目だけを並べ、例や説明は箇条書きの中に入れず、箇条書きのあとの文にまとめる。括弧書きの補足は書かない（意味を足したいときは、本文の文にする）。読者への呼びかけを入れる場合は「あなた」にそろえ、「みなさん」「皆さん」は使わない。文末は「？」で終える。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。筆者の経験（「私は〜してきました」「見てきました」など）は書かない。場面の描写（あるある）だけで書く。1行目は、場面の一行にして、「〜ですよね？」「〜してませんか？」のように読者に話しかける口調にする（言い切りや宣言では始めない）。最後の問いかけとは聞き方を変える。筆者の立場、肩書き、経歴、時期（「PMとして」「事業会社のSE時代」など）は書かない。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
+        cl = []
+        for t in recent_texts("threads", 12):
+            ls = [l for l in t.splitlines() if l.strip()]
+            if len(ls) > 1: cl.append(ls[1].strip()[:60])
+        avoid2 = ("\n最近の投稿の2行目（これと同じ主張・同じ理屈は使わない。言い換えでも同じ。別の主張で書く）:\n- " + "\n- ".join(cl)) if cl else ""
+        return base(stage, idea) + examples() + extra + avoid + avoid2 + threads_prompt(fmt)
     return base(stage, idea) + examples() + extra + ("""
 Instagramの保存されるカルーセルを作る。読み終えたら行動できるだけの中身を入れる。
 構成（8〜10枚）:
@@ -368,7 +373,7 @@ def make(kind, idx, idea):
     stage = idea["stage"]
     cands = [] if in_warmup() else [a for a in AFF if a["stage"] == stage]
     aff = random.choice(cands) if cands else None
-    prompt = write(kind, stage, idea["idea"], idea.get("next"))
+    prompt = write(kind, stage, idea["idea"], idea.get("next"), idea.get("format"))
     issues = ["未生成"]
     tries = G["max_rewrite"] + (2 if kind == "threads" else 1)   # Threadsは書き直しを1回多くする
     soft = []                                                    # 文体の「軽い指摘」（直せなくても止めない）
@@ -377,7 +382,7 @@ def make(kind, idx, idea):
         out = generate_json(prompt, role=idea.get("writer", "writer"))
         text = out["text"] if kind == "threads" else out["caption"] + " " + " ".join(s["title"] + s["body"] for s in out["slides"])
         issues = check(text, FACTS_TEXT)
-        if kind == "threads" and not issues: issues = threads_format_issues(out["text"])   # 形の崩れは書き直しで直す
+        if kind == "threads" and not issues: issues = threads_format_issues(out["text"], ask=type_asks(idea.get("format")))   # 形の崩れは書き直しで直す
         if kind == "threads" and not issues: issues = too_similar(out["text"], "threads")   # 過去の投稿・同じ日の投稿と似すぎていたら書き直し
         suggestions = []
         if not issues: issues, suggestions = logic_check(text)  # 機械チェックを通ったものだけAIで論理チェック
@@ -396,6 +401,7 @@ def make(kind, idx, idea):
     post = {"id": f"{now():%Y%m%d}-{kind}-{idx}", "kind": kind, "stage": stage, "idea": idea["idea"],
             "created": now().isoformat(), "issues": issues, "affiliate": aff["id"] if aff else None}
     if kind == "threads":
+        if idea.get("format"): post["format"] = idea["format"]      # 使った型（次回以降、直近と被らないように選ぶため）
         if soft: post["style_notes"] = soft                      # 直しきれず、そのまま投稿した文体の指摘（記録だけ）
         post["text"] = apply_pr(out["text"] + ("\n詳しくはプロフィールのリンクから" if aff else ""), bool(aff))
         post["topic"] = (S.get("threads_topic") or out.get("topic") or "").replace("#", "").strip()[:50]
@@ -417,7 +423,7 @@ def make(kind, idx, idea):
 
 
 
-def threads_format_issues(text):
+def threads_format_issues(text, ask=True):
     """Threadsの文章の形の崩れを見つける（箇条書きの途中の例・括弧書きの補足・呼びかけの不統一）"""
     out = []
     lines = text.split("\n")
@@ -432,8 +438,10 @@ def threads_format_issues(text):
     if re.search(r"[（(][^）)]{3,}[）)]", text):
         out.append("括弧書きの補足が入っている。補足は本文の文にする")
     tail = text.strip().splitlines()[-1].strip() if text.strip() else ""
-    if not re.search(r"[？?][」』）)]?\s*$", tail):
+    if ask and not re.search(r"[？?][」』）)]?\s*$", tail):
         out.append("最後の一文が問いかけ（「？」で終わる質問）になっていない。読者が返信しやすい短い質問で締める")
+    if not ask and re.search(r"[？?][」』）)]?\s*$", tail):
+        out.append("この型は問いかけで終えない。最後の一文は、「？」を使わず、言い切って終える")
     if re.search(r"みなさん|皆さん|皆様", text):
         out.append("呼びかけが「あなた」にそろっていない（「みなさん」を使っている）")
     return out
@@ -470,6 +478,64 @@ THREADS_ROLES = [
 ]
 
 
+# ---- Threadsの投稿の「型」（2026-11-23追加）。4本が同じ型にならないよう、ランダムに選ぶ ----
+# q: 最後を問いかけで終える型か。問いかけなしの型は、1日に1本まで
+THREADS_TYPES = {
+    "scene": {"q": True, "text": "「日常あるある」の形で書く。1行目は、読んだ人が「あるある」と思う日常の具体的な場面にする（例:「見といて」だけの友だちのLINE）。続けて、なぜ困るかを1文（AIの話は、1〜2文目の「AIの答えも同じ」のような一文でつなぐ。AIなしで成立する投稿は、つながなくてよい）、「こんなときは、〜します」で受けて、直し方のコツを1〜2点（「・」の箇条書き）を示し、最後は、読者が返信しやすい問いかけの一文で締める（場面に合う短い質問を1つ。例:「あなたの連絡は、返事がいるかどうか、一目で分かりますか？」）。"},
+    "pair": {"q": True, "text": "「外れる頼み方」と「当たる頼み方」を並べる型で書く。1行目は、読者に話しかける共感の場面。続けて、「×」で始まる行に外れる頼み方、「○」で始まる行に当たる頼み方を、短く1つずつ並べる（「・」の箇条書きは使わない）。そのあとに、違いが出る理由を1文。最後は、読者が返信しやすい問いかけの一文で締める。「こんなときは」は使わなくてよい"},
+    "oneliner": {"q": False, "text": "一言型で書く。1行目は、読者に話しかける共感の一文。続けて、なぜ外れるかと、直し方を、2〜3文で言い切る。箇条書きは使わない。最後に問いかけは付けない。最後の一文は、直し方を言い切る文にする（決めぜりふのような体言止めで締めない）"},
+    "prompt": {"q": False, "text": "指示文型で書く。そのまま貼って使える指示文を主役にする。1行目は、読者に話しかける共感の一文。2行目は、この指示文をいつ使うかを1文。そのあとに、指示文を「」で1つ付ける。指示文のあとに、なぜ効くかを1文。箇条書きは使わない。最後に問いかけは付けない"},
+    "choice": {"q": True, "text": "二択型で書く。1行目は、日常の場面に合う二択の問い（「Aと、Bと、どっちがいい？」の形）。2行目で、答えを言い切り、理由を1文で書く。そのあとに、直し方のコツを1つだけ「・」で示す。最後は、二択とは聞き方を変えた、読者に引き寄せる問いかけの一文で締める"},
+    "steps": {"q": True, "text": "3ステップ型で書く。1行目は、読者に話しかける共感の場面。続けて、順番にやることを「①」「②」「③」で始まる3行に短く書く（「・」の箇条書きは使わない）。最後は、読者が返信しやすい問いかけの一文で締める。「こんなときは」は使わなくてよい"},
+    "reword": {"q": True, "text": "言い換え型で書く。1行目は、読者に話しかける共感の場面。続けて、「〇〇」と頼むところを「△△」と頼む、という言い換えを1組だけ、頼み方を「」で2つ並べて示す。なぜ言い換えると伝わるかを1文。最後は、読者が返信しやすい問いかけの一文で締める"},
+    "check": {"q": True, "text": "確認チェック型で書く。1行目は、読者に話しかける共感の場面。続けて、「こんなときは、使う前に3つ見ます」のように受けて、見る点を「・」で3つ並べる。最後は、読者が返信しやすい問いかけの一文で締める"},
+    "askback": {"q": True, "text": "聞き返し型で書く。1行目は、頼みが伝わらずに困る日常の共感の場面。続けて、AIに聞き返してもらうための頼み方を「」で1つ示す。聞き返してもらうと何が変わるかを1文。最後は、読者が返信しやすい問いかけの一文で締める"},
+    "story": {"q": True, "text": "小話型で書く。日常の場面を、2〜3文で短く描く（1文目は「〜だよね」「〜あるよね」の共感の口調）。最後の前の1文で、AIの頼み方か確かめ方につなぐ。箇条書きは使わない。最後は、読者が返信しやすい問いかけの一文で締める"},
+}
+# 4本それぞれの役割（THREADS_ROLESの順）で使える型
+THREADS_SLOT_TYPES = [
+    ["scene", "pair", "oneliner", "choice", "steps", "reword", "story"],     # 1本目: 日常の場面型
+    ["scene", "pair", "oneliner", "choice", "reword", "check", "story"],     # 2本目: AI活用のあるある
+    ["scene", "pair", "prompt", "steps", "reword", "askback"],               # 3本目: 資料ベース（指示文つき）
+    ["scene", "oneliner", "choice"],                                         # 4本目: AI超入門
+]
+
+def type_asks(fmt):
+    """その型は、最後を問いかけで終えるか（型が不明なら、終える）"""
+    return THREADS_TYPES.get(fmt, {}).get("q", True)
+
+def recent_formats(kind, n):
+    """直近n本の投稿で使った型"""
+    from .common import iter_posts
+    xs = [p for _, p in iter_posts() if p.get("kind") == kind and p.get("status") in ("approved", "published") and p.get("format")]
+    return [p["format"] for p in sorted(xs, key=lambda p: p["created"])[-n:]]
+
+def pick_formats(kind="threads"):
+    """4本分の型をランダムに選ぶ。同じ日に同じ型を使わない・直近の投稿と被らない・問いかけなしの型は1日1本まで"""
+    for n in (6, 3, 0):                      # 直近6本と被らない形で選べなければ、条件をゆるめる
+        recent = set(recent_formats(kind, n))
+        for _ in range(200):
+            sel = []
+            for allowed in THREADS_SLOT_TYPES:
+                c = [k for k in allowed if k not in recent and k not in sel]
+                if not c: break
+                sel.append(random.choice(c))
+            if len(sel) == len(THREADS_SLOT_TYPES) and sum(1 for k in sel if not THREADS_TYPES[k]["q"]) <= 1:
+                return sel
+    return ["scene"] * len(THREADS_SLOT_TYPES)
+
+THREADS_TAIL = "80〜160字（そのまま貼れる指示文を付ける役割のときは250字まで）。行数は7行まで。例は付けても1つまでにし、最後の問いかけは必ず付ける。短い文で、会話するような口調。箇条書きは「・」で項目だけを並べ、例や説明は箇条書きの中に入れず、箇条書きのあとの文にまとめる。括弧書きの補足は書かない（意味を足したいときは、本文の文にする）。読者への呼びかけを入れる場合は「あなた」にそろえ、「みなさん」「皆さん」は使わない。文末は「？」で終える。Instagramや他の媒体への案内、URL、ハッシュタグは書かない。数字は事実の表にあるものだけ、体験は経歴にあるものだけ（なければ体験は書かない）。筆者の経験（「私は〜してきました」「見てきました」など）は書かない。場面の描写（あるある）だけで書く。1行目は、場面の一行にして、「〜ですよね？」「〜してませんか？」のように読者に話しかける口調にする（言い切りや宣言では始めない）。最後の問いかけとは聞き方を変える。筆者の立場、肩書き、経歴、時期（「PMとして」「事業会社のSE時代」など）は書かない。topic には、この投稿を探す人が使いそうな短い言葉を1つ（例: AI活用、仕事術、転職、ロジカルシンキング）。JSON: {\"text\": \"...\", \"topic\": \"...\"}"
+
+def threads_prompt(fmt=None):
+    """Threads投稿の書き方の指示（型 + 共通のルール）"""
+    t = THREADS_TYPES.get(fmt) or THREADS_TYPES["scene"]
+    tail = THREADS_TAIL
+    if not t["q"]:
+        tail = (tail.replace("最後の問いかけは必ず付ける。", "最後に問いかけは付けない。")
+                    .replace("文末は「？」で終える。", "文末は言い切りで終え、「？」で終えない。")
+                    .replace("最後の問いかけとは聞き方を変える。", ""))
+    return "\nThreads用の投稿を1つ。" + t["text"] + tail
+
 def basics():
     """AI超入門の用語集（data/basics/ai_basics.md）。「## 用語」ごとの本文を、{用語: 本文}で返す"""
     f = ROOT / "data/basics/ai_basics.md"
@@ -485,6 +551,7 @@ def threads_ideas(ig):
     stages = ["pm_work", "ai_work", "ai_work", "ai_work"]
     ch = chapters(); pick = random.sample(ch, 2) if len(ch) >= 2 else []   # 2本目と3本目は、別々の章から論点を選ばせる
     out, n = [], 0
+    fm = pick_formats("threads")                                      # 4本それぞれの型（ランダム）
     for k, r in enumerate(THREADS_ROLES):
         hint = ""
         if k in (1, 2) and n < len(pick): hint = f"。資料の「{pick[n]}」から論点を選ぶ"; n += 1
@@ -493,6 +560,7 @@ def threads_ideas(ig):
             fresh = [t for t in bs if f"今回の用語: {t}" not in used] or list(bs)
             if fresh: t = random.choice(fresh); hint = f"。今回の用語: {t}\n{bs[t]}"
         it = {"stage": stages[k], "idea": f"この投稿の役割: {r}{avoid}{hint}"}
+        it["format"] = fm[k]
         if k in (1, 3) and "writer_basic" in S["models"]: it["writer"] = "writer_basic"   # 2本目（AIあるある）と4本目（AI超入門）は軽いモデルで書く
         out.append(it)
     return out
