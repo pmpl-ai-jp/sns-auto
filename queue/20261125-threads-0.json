@@ -11,5 +11,13 @@
   "topic": "AI活用",
   "status": "published",
   "published_id": "18122324146960072",
-  "published_at": "2026-11-25T18:18:40.733347+09:00"
+  "published_at": "2026-11-25T18:18:40.733347+09:00",
+  "metrics": {
+    "views": 5,
+    "likes": 1,
+    "replies": 0,
+    "reposts": 0,
+    "quotes": 0
+  },
+  "score": 0.2
 }
